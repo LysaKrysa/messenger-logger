@@ -16,7 +16,7 @@ and use Telegram's Save/Download action. A bot cannot force a download into your
 phone's storage. The requested copy has no button of its own.
 
 The shared receiver verifies the private chat, pressing user's identity, approved
-pairing, original bot author and document metadata from Telegram. The callback
+pairing, original bot author and document metadata from Telegram. The button’s callback data
 contains no file ID or URL. Workers cannot inject buttons, choose another file,
 call callback/file APIs or expose the bot token through a download link.
 
