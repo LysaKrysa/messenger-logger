@@ -1,5 +1,19 @@
 # Validation
 
+## Server usage and free-tier budgets
+
+- Synthetic Linux counters verify CPU guest-tick handling, memory availability,
+  physical/default-route interfaces and exclusion of container/loopback traffic.
+- Accounting regressions cover provisioned allocation versus CPU load, changes
+  applying forward, restart persistence, counter/boot resets, clock rollback,
+  UTC month/year boundaries, small non-zero amounts and missing/stale history.
+- File-size scans skip symlinks, are bounded by work/time and publish no bodies
+  or credentials. Collector failures leave account management running.
+- Administrator route tests verify authentication, CSRF/origin protection, atomic
+  finite numeric settings, expiring monthly manual requests and safe rendering.
+- Real browser fixtures cover Usage navigation, settings persistence, meters and
+  44 px fields, expanded-form overflow and five responsive widths.
+
 ## Dashboard redesign
 
 - Real Flask pages are checked at 320, 390, 768, 1024 and 1440 px for horizontal

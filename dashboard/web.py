@@ -14,6 +14,8 @@ from flask import Flask, abort, g, redirect, render_template, request, session, 
 from werkzeug.exceptions import HTTPException
 
 from .store import BOT_TOKEN, DashboardError, from_environment
+from .usage import parse_config
+from .usage_view import build_view
 
 
 def verify_bot(token):
@@ -129,6 +131,13 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
         return render_template("index.html", accounts=accounts, host=host,
                                connected=sum(a["status"].get("ready", False) and not a["status"].get("stale") for a in accounts),
                                bot_status=store.setting("bot_status", "Waiting for the invitation receiver"))
+
+    @app.route("/usage", methods=["GET", "POST"])
+    def usage():
+        if request.method == "POST":
+            store.set_setting("usage_config", parse_config(request.form, store.clock()))
+            return redirect(url_for("usage", saved="1"))
+        return render_template("usage.html", usage=build_view(store, status_root, store.clock()), saved=request.args.get("saved") == "1")
 
     @app.route("/accounts/new", methods=["GET", "POST"])
     def new_account():

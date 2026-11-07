@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — server usage and free-tier budgets
+
+- Add an administrator Usage tab with CPU, memory, swap, disk, network rates
+  and bounded metadata-only account storage measurements.
+- Persist observed monthly outbound traffic and allocated A1 compute estimates
+  across manager restarts; handle counter resets and UTC month transitions.
+- Add editable, source-dated Oracle budgets, full-month allocation forecasts and
+  explicitly manual cloud storage/backup/request totals. Unknown and stale data
+  are labelled; local observations are not presented as an Oracle bill.
+- Keep sampling isolated from account reconciliation and preserve credential,
+  consent, retention, worker and Telegram behavior.
+
 ## Unreleased — mobile-first dashboard redesign
 
 - Replace decorative dark gradients with a neutral light workspace, one action

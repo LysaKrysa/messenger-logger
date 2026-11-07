@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Usage · Messenger workspace{% endblock %}
+{% block breadcrumb %}Usage{% endblock %}
+{% macro budget(row) %}
+<article class="usage-budget">
+  <div class="usage-budget-top"><h3>{{ row.label }}</h3>{% if row.level %}<span class="status {{ 'warning' if row.level == 'warning' else 'usage-danger' }}">{{ 'Budget reached' if row.level == 'danger' else 'Near budget' }}</span>{% endif %}</div>
+  <p class="usage-budget-value">{{ row.used }}</p><p class="muted usage-limit">of {{ row.limit }} monthly budget</p>
+  {% if row.value is not none %}<meter class="usage-meter {{ row.level }}" min="0" max="100" value="{{ row.value }}" aria-label="{{ row.label }} budget used" aria-valuetext="{{ row.used }} of {{ row.limit }}">{{ row.ratio }}</meter>{% endif %}
+  <p class="field-note">{{ row.note }}</p>
+  {% if row.forecast %}<p class="usage-forecast {{ 'over' if row.forecast_over else '' }}"><strong>Full-month allocation:</strong> {{ row.forecast }}{% if row.forecast_over %} · Above this budget{% endif %}</p>{% endif %}
+</article>
+{% endmacro %}
+{% macro numeric(key, label, optional=false, help='') %}
+<div><label for="usage-{{ key }}">{{ label }}{% if optional %}<span class="optional">Optional</span>{% endif %}</label><input id="usage-{{ key }}" name="{{ key }}" type="number" min="{{ '0' if optional else '0.000001' }}" step="{{ '1' if key in ['requests_limit','backups_limit','object_requests','backups'] else 'any' }}" value="{{ usage.config[key] if usage.config[key] is not none else '' }}" {% if not optional %}required{% endif %} {% if help %}aria-describedby="note-{{ key }}"{% endif %}>{% if help %}<p class="field-note" id="note-{{ key }}">{{ help }}</p>{% endif %}</div>
+{% endmacro %}
+{% block content %}
+<div class="page-heading"><div><h1>Usage</h1><p class="muted">Server resources and your Oracle Always Free budgets.</p></div><span class="status {{ 'warning' if usage.stale else 'online' }}"><span class="dot"></span>{{ 'Waiting for monitoring' if not usage.available else 'Readings are stale' if usage.stale else 'Monitoring active' }}</span></div>
+{% if saved %}<div class="notice" role="status">Usage settings saved. Resource readings refresh about once a minute.</div>{% endif %}
+{% if not usage.available %}<div class="notice" role="status">Waiting for the first usage sample. Monitoring updates about once a minute after the manager service is updated and running.</div>{% elif usage.stale %}<div class="notice warning" role="status">These readings are more than three minutes old. Check the account manager service before relying on them.</div>{% endif %}
+<div class="section-heading"><div><h2>This server</h2><p class="muted">All server processes · {% if usage.available %}Updated {{ usage.updated }}{% else %}Readings will appear here{% endif %}</p></div></div>
+<div class="usage-resources">
+  {% for item in usage.resources %}<article class="panel usage-resource"><h3>{{ item.label }}</h3><p class="usage-resource-value">{{ item.value }}</p>{% if item.meter is not none %}<meter class="usage-meter {{ item.level }}" min="0" max="100" value="{{ item.meter }}" aria-label="{{ item.label }}" aria-valuetext="{{ item.value }}">{{ item.meter }}%</meter>{% endif %}<p class="field-note">{{ item.note }}</p></article>{% endfor %}
+</div>
+<div class="usage-network panel"><div><h3>Inbound rate</h3><p>{{ usage.rx }}</p></div><div><h3>Outbound rate</h3><p>{{ usage.tx }}</p></div><div><h3>Server uptime</h3><p>{{ usage.uptime }}</p></div><div><h3>Disk space available</h3><p>{{ usage.disk_free }}</p></div></div>
+<section aria-labelledby="monthly-heading">
+  <div class="section-heading"><div><h2 id="monthly-heading">This month’s estimates</h2><p class="muted">{{ usage.month }} · UTC calendar month</p></div></div>
+  <p class="usage-scope">This server only. {% if usage.since != 'Not available' %}Observed since {{ usage.since }}.{% else %}No observation history for this month yet.{% endif %} Earlier usage and other Oracle resources are excluded. These figures are not an Oracle bill.</p>
+  {% if not usage.allocated %}<p class="field-note">Enter the OCPUs and memory allocated in Oracle Console under <a href="#usage-settings">Allocation and budgets</a> to enable compute estimates. CPU load does not determine allocated compute usage.</p>{% endif %}
+  {% if usage.gaps %}<p class="field-note">Monitoring detected a restart, counter reset or missing interface. Totals may be incomplete.</p>{% endif %}
+  <div class="usage-budgets">{% for row in usage.quotas %}{{ budget(row) }}{% endfor %}</div>
+  <p class="field-note">Full-month allocation assumes the saved VM size runs for the entire month. Traffic is sampled from external network interfaces and can differ from billable internet egress. Transfer budgets use decimal TB.</p>
+</section>
+<section aria-labelledby="oracle-totals-heading" class="usage-section">
+  <div class="section-heading"><div><h2 id="oracle-totals-heading">Oracle account totals</h2><p class="muted">Optional totals you enter from Oracle Console. They are not read automatically.</p></div></div>
+  <div class="usage-cloud-table">{% for row in usage.manual %}<article class="usage-cloud-row"><div><h3>{{ row.label }}</h3><p class="field-note">{{ row.note }}</p></div><div><strong>{{ row.used }}</strong><span class="muted">of {{ row.limit }}</span>{% if row.level %}<span class="status {{ 'warning' if row.level == 'warning' else 'usage-danger' }}">{{ 'Budget reached' if row.level == 'danger' else 'Near budget' }}</span>{% endif %}</div></article>{% endfor %}</div>
+  <p class="field-note">Manual values last saved: {{ usage.manual_at }}. Other instances, trial credits, additional services and total charges must be checked in <a href="https://cloud.oracle.com/" target="_blank" rel="noopener noreferrer">Oracle Console</a>.</p>
+</section>
+<section class="usage-section" aria-labelledby="storage-heading">
+  <div class="section-heading"><div><h2 id="storage-heading">Account storage</h2><p class="muted">Local files belonging to each dashboard account, including media and archives.</p></div></div>
+  <div class="usage-accounts">{% for account in usage.accounts %}<a href="{{ url_for('account',ident=account.id) }}"><span>{{ account.name }}</span><span>{{ account.bytes }}{% if account.partial and account.bytes != 'Not available' %}<small>Partial scan</small>{% endif %}</span></a>{% else %}<p class="muted">No accounts added yet.</p>{% endfor %}</div>
+  <p class="field-note">Local message retention remains 72 hours. Storage measurements read file sizes only.</p>
+</section>
+<section class="panel usage-settings" id="usage-settings">
+  <details><summary><strong>Allocation and budgets</strong><span class="muted">Confirm your VM size and adjust limits for your account.</span></summary>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <fieldset><legend>Allocated Ampere A1 resources</legend><p class="field-note">Copy the provisioned values from Oracle Console. Do not use Linux’s reported free RAM or current CPU percentage.</p><div class="usage-fields">{{ numeric('ocpus','Allocated OCPUs',true) }}{{ numeric('memory_gb','Allocated memory (GB)',true) }}</div></fieldset>
+    <fieldset><legend>Dashboard free-tier budgets</legend><p class="field-note">Defaults use the current Oracle A1 and Always Free-only reference. Confirm the allowances that apply to your tenancy.</p><div class="usage-fields">{{ numeric('cpu_hours_limit','A1 OCPU-hours / month') }}{{ numeric('memory_hours_limit','A1 GB-hours / month') }}{{ numeric('transfer_tb_limit','Outbound transfer (TB / month)') }}{{ numeric('storage_gb_limit','Boot + block storage (GB)') }}{{ numeric('object_gb_limit','Object + archive storage (GB)') }}{{ numeric('requests_limit','Object API requests / month') }}{{ numeric('backups_limit','Volume backups') }}</div></fieldset>
+    <fieldset><legend>Optional Oracle account totals</legend><p class="field-note">Leave unknown values blank. Enter actual allocations and totals from Oracle Console; filesystem space is different from provisioned block storage.</p><div class="usage-fields">{{ numeric('storage_gb','Provisioned boot + block storage (GB)',true) }}{{ numeric('backups','Volume backups in your account',true) }}{{ numeric('object_gb','Object + archive storage used (GB)',true) }}{{ numeric('object_requests','Object API requests this month',true) }}</div></fieldset>
+    <div class="form-actions"><button class="button primary">Save usage settings</button></div>
+  </form></details>
+</section>
+<p class="field-note">References verified {{ usage.verified }}: <a href="{{ usage.source }}" target="_blank" rel="noopener noreferrer">Oracle Always Free resources</a>. Budgets are shared across eligible resources in the tenancy; this page does not query Oracle billing. Operating-system disk and memory are shown in binary units (GiB).</p>
+{% endblock %}

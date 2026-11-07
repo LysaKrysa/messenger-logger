@@ -71,6 +71,24 @@ def main():
                 store.action(ident, 'approve')
                 store.action(ident, 'start')
             manager.run_once()
+            # The web service can read the safe snapshot but not the root ledger.
+            public_usage = root / "status/usage.json"
+            private_usage = root / "status/usage-state.json"
+            assert public_usage.stat().st_mode & 0o777 == 0o644
+            assert private_usage.stat().st_mode & 0o777 == 0o600
+            os.seteuid(database_uid)
+            try:
+                usage = json.loads(public_usage.read_text())
+                assert usage["version"] == 1
+                assert "SYNTHETIC_OFFLINE" not in json.dumps(usage)
+                try:
+                    private_usage.read_text()
+                except PermissionError:
+                    pass
+                else:
+                    raise AssertionError("Web identity could read the root usage ledger")
+            finally:
+                os.seteuid(0)
             until = time.monotonic() + 20
             while time.monotonic() < until and not all((manager.path(ident)/'identity').is_file() for ident in ids):
                 time.sleep(.2)

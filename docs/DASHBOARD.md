@@ -7,6 +7,10 @@ limit is **six Messenger accounts in total**, including your own. Every account
 has a separate worker, session/device state, archive, media directory, and
 Telegram destination. This is an invitation-only deployment for trusted users.
 
+The **Usage** tab shows live server resources, observed monthly transfer and
+editable Oracle Always Free budgets. See [usage and quota tracking](USAGE.md) for
+setup, scope, current reference limits and monitoring behavior.
+
 The responsive workspace uses a mobile navigation drawer, grouped summaries and
 44 px controls. See [interface specification](UI_DESIGN.md) for layout and tokens.
 

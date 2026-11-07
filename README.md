@@ -84,6 +84,11 @@ start/stop/restart controls, cookie replacement, and Telegram invitations. Each
 person receives notifications in their own private chat with the same bot;
 Messenger conversations remain separated into topics within that chat.
 
+The **Usage** tab adds live server resources, per-account storage, observed
+monthly transfer and editable Oracle Always Free budgets. It labels partial
+local estimates and optional console-entered totals separately from billing.
+See [usage monitoring](docs/USAGE.md).
+
 The administrator creates a **single-use, 15-minute invitation**. The recipient
 opens it in Telegram, then the administrator approves that Telegram identity
 before starting the account. Workers receive individual gateway credentials;
