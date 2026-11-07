@@ -24,7 +24,7 @@
     <section class="panel"><div class="panel-top"><h2>Forwarding preferences</h2></div>
       <form method="post" action="{{ url_for('action',ident=account.id,action='options') }}">
         <input type="hidden" name="csrf" value="{{ csrf }}">
-        <label for="mode">Send to Telegram</label><select id="mode" name="mode"><option value="deleted" {% if account.mode=='deleted' %}selected{% endif %}>Deleted messages only</option><option value="all" {% if account.mode=='all' %}selected{% endif %}>All supported incoming content</option></select>
+        <label for="mode">Send to Telegram</label><select id="mode" name="mode"><option value="deleted" {% if account.mode=='deleted' %}selected{% endif %}>Deleted messages only</option><option value="all" {% if account.mode=='all' %}selected{% endif %}>All incoming content</option></select>
         <label class="check"><input type="checkbox" name="view_once" {% if account.view_once %}checked{% endif %}><span>Forward available view-once content immediately</span></label>
         <p class="field-note">Only incoming content is captured. Your outgoing messages and quoted copies of your text are excluded.</p>
         <details class="help-details"><summary>Media and retention details</summary><p>Telegram attachments, including voice recordings, have download/save controls. Each deletion is sent as one message or ZIP. Media that the transport does not expose cannot be recovered. Local copies expire after 72 hours; Telegram copies remain.</p></details>

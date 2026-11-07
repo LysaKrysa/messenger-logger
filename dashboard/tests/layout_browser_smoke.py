@@ -3,6 +3,12 @@ from playwright.sync_api import expect
 
 
 def verify(browser, admin, origin, account_url, output):
+    # Exercise a real pending row, including its destructive control, at every
+    # width. Revoke this reservation before the subsequent onboarding fixtures.
+    admin.goto(origin + "/setup-links")
+    admin.get_by_label("Label", exact=False).fill("Alex’s setup invitation")
+    admin.get_by_role("button", name="Generate setup link").click()
+    expect(admin.locator(".invitation-row").filter(has_text="Alex’s setup invitation")).to_be_visible()
     routes = (("/", "overview"), (account_url.removeprefix(origin), "account"),
               ("/bot", "bot"), ("/setup-links", "invitations"), ("/accounts/new", "new-account"))
     target_check = """() => [...document.querySelectorAll(
@@ -98,6 +104,12 @@ def verify(browser, admin, origin, account_url, output):
         assert not errors, errors
     finally:
         mobile.close()
+
+    admin.goto(origin + "/setup-links")
+    row = admin.locator(".invitation-row").filter(has_text="Alex’s setup invitation")
+    admin.once("dialog", lambda dialog: dialog.accept())
+    row.get_by_role("button", name="Disable link").click()
+    expect(row).to_contain_text("Disabled")
 
     # Sign-in uses a fresh context so this cannot log out the administrator.
     guest = browser.new_context(ignore_https_errors=True, viewport={"width": 320, "height": 700})
