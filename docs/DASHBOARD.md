@@ -1,5 +1,12 @@
 # Admin dashboard and one shared Telegram bot
 
+Offline alerts and one-time session refreshes are available through the shared
+bot. Reconnect links require confirmation by the already paired Telegram owner
+and accept only the original Facebook account. They update the existing record
+without adding an account, changing pairing or bypassing administrator approval.
+Active reconnects appear in **Setup links**, where administrators can disable
+them. See [offline alerts and reconnect security](TELEGRAM.md#offline-alerts-and-account-reconnects).
+
 [← README](../README.md#admin-dashboard--one-shared-bot)
 
 Manage a small group from an administrator-only HTTPS dashboard. The initial

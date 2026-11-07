@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — offline alerts and fixed-account reconnects
+
+- Monitor worker connection reports in the shared bot and send debounced,
+  localized offline alerts independently of capture workers. Suppress alerts
+  for intentional pause/unlink; avoid duplicate uncertain sends and flapping.
+- Add single-use, expiring reconnect links and localized `/reconnect` / `/polacz`
+  requests. Require confirmation from the original Telegram owner before opening
+  the browser, and accept only the originally approved Facebook account.
+- Refresh credentials in the existing record, rotate worker keys, preserve pairing
+  and options, and reconnect without provisioning another account or slot.
+- Invalidate stale/recovered/reassigned/revoked links, reject different Facebook
+  IDs without writing cookies, and expose reconnect activity to administrators.
+
 ## Unreleased — help in the selected language
 
 - Show Polish commands, arguments and explanations for Polish recipients and

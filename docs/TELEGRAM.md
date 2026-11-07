@@ -2,6 +2,50 @@
 
 [← README](../README.md#telegram-forwarding) · [Troubleshooting](TROUBLESHOOTING.md)
 
+## Offline alerts and account reconnects
+
+The shared bot monitors connection reports independently of each logger. A
+sustained offline/unresponsive state triggers one localized Telegram alert to
+the already paired owner, with a single-use reconnect link. Brief disconnects
+are debounced for three minutes; first startup gets a six-minute grace period.
+A short monitor warmup avoids an alert while fresh reports arrive after a bot
+restart. A new alert is allowed after at least 30 seconds of confirmed recovery,
+with at most three automatic alerts per account per hour.
+
+Offline alerts bypass message quiet mode. Intentional pause, unlink and account
+removal suppress alerts. The bot service, server and Telegram connectivity must
+be available to send them; an entire VM outage needs external monitoring.
+
+If the alert link expires, send `/reconnect` in English or `/polacz` in Polish.
+Links are available only for an approved, paired, desired-running account with
+a confirmed sustained outage. They expire after 15 minutes, are consumed by one
+claim, and allow only one active reconnect session per account. A replacement
+link invalidates its predecessor; issuing links is limited to three per user per
+hour, including the alert's link.
+
+1. Open the link and accept the session-use notice.
+2. In your **existing paired Telegram chat**, approve the confirmation message.
+   Reject unexpected requests. The Facebook browser cannot open before approval.
+3. Sign in to the **same originally approved Facebook account**, complete any
+   verification yourself, then confirm saving the session.
+4. The existing logger reconnects automatically. The same Telegram destination,
+   settings and local account archive are preserved; no second account or new
+   Telegram invitation is created. Capture resumes with future events.
+
+The link is bound to the stored account ID, Facebook ID, Telegram owner and
+worker credential/revision. A different Facebook ID disables the link without
+changing credentials and closes its browser. Online recovery, expiry, revocation,
+pause/unlink, account removal and credential/revision changes invalidate active
+links. Replays and simultaneous claims/completions cannot create extra accounts.
+Reconnect links use no new account slot; ordinary onboarding still requires an
+administrator-generated invitation and approval. Administrators can see and
+disable reconnect links in **Setup links**.
+
+Alert and confirmation attempts are durably claimed before sending. An uncertain
+Telegram send is not automatically replayed; an owner can explicitly request a
+fresh link. Links contain random secrets in URL fragments, not cookies. Browser
+sessions remain isolated, short-lived and subject to the existing hard deadline.
+
 ## Private bot commands
 
 The first reply to a new user starts with a localized welcome notice pointing to
@@ -16,6 +60,7 @@ accepted regardless of the user's reply language.
 | `/status` | `/stan` | Messenger connection, capture state, last captured event and Telegram delivery health. |
 | `/pause` | `/pauza` | Request capture shutdown and keep your pairing. |
 | `/resume` | `/wznow` | Reconnect and capture new events from the new worker's startup; missed history is not imported. |
+| `/reconnect` | `/polacz` | Request a one-time session-refresh link for your existing offline account. |
 | `/mode deleted` | `/tryb usuniete` | Forward deleted messages. |
 | `/mode all` | `/tryb wszystkie` | Forward all supported incoming chat events. |
 | `/media on` / `/media off` | `/media wlacz` / `/media wylacz` | Enable or disable new and queued attachment downloads and automatic file uploads. |

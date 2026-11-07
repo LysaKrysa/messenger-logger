@@ -290,7 +290,8 @@ class Store:
                     raise DashboardError("This server has reached its configured account limit.")
                 if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='setup_invites'").fetchone():
                     now = self.clock()
-                    reserved = db.execute("SELECT COUNT(*) FROM setup_invites WHERE expires>? AND (state='pending' OR (state='claimed' AND session_expires>?))", (now, now)).fetchone()[0]
+                    purpose = "purpose='setup' AND " if "purpose" in {row[1] for row in db.execute("PRAGMA table_info(setup_invites)")} else ""
+                    reserved = db.execute("SELECT COUNT(*) FROM setup_invites WHERE " + purpose + "expires>? AND (state='pending' OR (state='claimed' AND session_expires>?))", (now, now)).fetchone()[0]
                     if db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] + reserved >= self.max_accounts:
                         raise DashboardError("Available account slots are reserved by active setup links. Disable an unused link before adding an account manually.")
                 db.execute("INSERT INTO accounts(id,name,cookies,facebook_id,created) VALUES (?,?,?,?,?)", (ident, name, self.seal("cookies:" + ident, parsed) if parsed else None, parsed["c_user"] if parsed else None, self.clock()))
@@ -317,7 +318,7 @@ class Store:
                     raise DashboardError("Account not found.")
                 if row[0] and row[0] != parsed["c_user"]:
                     raise DashboardError("Those cookies belong to a different Messenger account. Create a separate account instead.")
-                db.execute("UPDATE accounts SET cookies=?,facebook_id=?,revision=revision+1 WHERE id=?", (self.seal("cookies:" + ident, parsed), parsed["c_user"], ident))
+                db.execute("UPDATE accounts SET cookies=?,facebook_id=?,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=?", (self.seal("cookies:" + ident, parsed), parsed["c_user"], ident))
         except sqlite3.IntegrityError:
             raise DashboardError("That Messenger account is already configured.") from None
 
@@ -379,6 +380,7 @@ class Store:
                     raise DashboardError("There is no pending Telegram pairing.")
                 db.execute("UPDATE accounts SET chat_id=pending_chat,pending_chat=NULL,pending_name=NULL,revision=revision+1 WHERE id=?", (ident,))
                 db.execute("DELETE FROM settings WHERE key IN (?,?,?)", ("controls:" + ident, "worker_status:" + ident, "delivery_status:" + ident))
+                db.execute("DELETE FROM settings WHERE key=?", ("connection_monitor:" + ident,))
             elif action == "disconnect":
                 db.execute("UPDATE accounts SET desired=0,chat_id=NULL,pending_chat=NULL,pending_name=NULL,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=?", (ident,))
                 db.execute("DELETE FROM invites WHERE account_id=?", (ident,))
@@ -393,6 +395,7 @@ class Store:
                     raise DashboardError("Choose deleted messages or all supported chat events.")
                 db.execute("UPDATE accounts SET mode=?,view_once=?,revision=revision+1 WHERE id=?", (mode, int(bool(view_once)), ident))
             elif action == "remove":
+                db.execute("DELETE FROM settings WHERE key=?", ("connection_monitor:" + ident,))
                 db.execute("DELETE FROM settings WHERE key IN (?,?,?)", ("controls:" + ident, "worker_status:" + ident, "delivery_status:" + ident))
                 db.execute("DELETE FROM invites WHERE account_id=?", (ident,))
                 db.execute("DELETE FROM accounts WHERE id=?", (ident,))

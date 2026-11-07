@@ -18,7 +18,7 @@
     {% for link in links %}
     <article class="invitation-row">
       <span class="invitation-mark" aria-hidden="true">{{ icon('link') }}</span>
-      <div class="invitation-details"><h3>{{ link.label }}</h3><p>Created {{ link.created|setup_time }}<span class="invitation-expiry">Expires {{ (link.session_expires if link.state=='claimed' else link.expires)|setup_time }}</span></p>{% if link.account_id %}<a href="{{ url_for('account', ident=link.account_id) }}">Open connected account</a>{% endif %}</div>
+      <div class="invitation-details"><h3>{{ link.label }}{% if link.purpose=="reconnect" %} <span class="chip">Existing account</span>{% endif %}</h3><p>Created {{ link.created|setup_time }}<span class="invitation-expiry">Expires {{ (link.session_expires if link.state=='claimed' else link.expires)|setup_time }}</span></p>{% if link.account_id %}<a href="{{ url_for('account', ident=link.account_id) }}">Open connected account</a>{% endif %}</div>
       <span class="status {{ 'online' if link.state == 'completed' else 'warning' if link.state == 'claimed' else '' }}">{{ {'pending':'Ready to share','claimed':'Setup in progress','completed':'Setup completed','revoked':'Disabled','expired':'Expired'}.get(link.state,link.state) }}</span>
       {% if link.state in ['pending','claimed','completed'] %}<form method="post" action="{{ url_for('setup_disable', ident=link.id) }}" data-confirm="Disable this invitation and close its temporary browser? An already connected account will keep its own controls."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Disable link</button></form>{% endif %}
     </article>

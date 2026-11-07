@@ -9,6 +9,7 @@ ALIASES = {
     "stan": "status", "pauza": "pause", "wznow": "resume", "wznów": "resume",
     "tryb": "mode", "cisza": "quiet", "ustawienia": "settings", "pomoc": "help",
     "prywatnosc": "privacy", "prywatność": "privacy", "odlacz": "disconnect", "odłącz": "disconnect",
+    "polacz": "reconnect", "połącz": "reconnect",
 }
 CONTROLS = {"status", "pause", "resume", "mode", "media", "quiet", "settings"}
 

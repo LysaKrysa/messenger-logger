@@ -14,6 +14,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from .store import DashboardError, from_environment
 from .bot_commands import ALIASES, CONTROLS, handle_control
+from .connection_alerts import ConnectionAlerts
 from telegram_i18n import tr
 
 METHODS = {
@@ -102,9 +103,10 @@ class TelegramAPI:
 
 
 class PairingReceiver:
-    def __init__(self, store, api):
+    def __init__(self, store, api, *, origin=None):
         self.store, self.api = store, api
         self.stop = threading.Event()
+        self.connection_alerts = ConnectionAlerts(store, api, origin=origin)
 
     def handle(self, update):
         ident = update.get("update_id")
@@ -114,7 +116,10 @@ class PairingReceiver:
         self.store.set_setting("bot_offset", ident)
         callback = update.get("callback_query")
         if isinstance(callback, dict):
-            self.download(callback)
+            if isinstance(callback.get("data"), str) and callback["data"].startswith(("rca.", "rcr.")):
+                self.connection_alerts.confirm(callback)
+            else:
+                self.download(callback)
             return
         message = update.get("message")
         if not isinstance(message, dict):
@@ -140,7 +145,9 @@ class PairingReceiver:
         canonical = ALIASES.get(command.removeprefix("/").casefold(), command.removeprefix("/").casefold())
         if not command.startswith("/"):
             canonical = ""
-        if canonical in CONTROLS:
+        if canonical == "reconnect":
+            reply = self.connection_alerts.request(chat_id, language) if not parameter else tr(language, "command_usage")
+        elif canonical in CONTROLS:
             reply = handle_control(self.store, chat_id, canonical, parameter, language)
         elif canonical in {"en", "pl"}:
             if parameter.strip():
@@ -239,6 +246,7 @@ class PairingReceiver:
             print("Telegram download copy could not be confirmed; no automatic resend.", flush=True)
 
     def run(self):
+        threading.Thread(target=self.connection_alerts.run, args=(self.stop,), name="connection-alerts", daemon=True).start()
         checked_bot = None
         while not self.stop.is_set():
             try:
