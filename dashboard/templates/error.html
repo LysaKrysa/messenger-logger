@@ -1,1 +1,6 @@
-{% extends 'base.html' %}{% block content %}<div class="eyebrow">REQUEST NOT COMPLETED</div><h1>Let's check that.</h1><div class="notice error" role="alert">{{ message }}</div><a class="button secondary" href="{{ url_for('index') }}">Return to workspace ↗</a>{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-heading"><div><h1>Request couldn’t be completed</h1><p class="muted">Check the details below and try again.</p></div></div>
+<div class="notice error" role="alert">{{ message }}</div>
+<a class="button secondary" href="{{ url_for('index') }}">Return to workspace</a>
+{% endblock %}

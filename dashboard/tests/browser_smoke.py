@@ -19,6 +19,7 @@ from dashboard.store import Store
 from dashboard.web import create_app
 from dashboard.tests.setup_browser_smoke import OfflineBrowser, verify as verify_setup
 from dashboard.tests.keyboard_browser_smoke import verify as verify_keyboard
+from dashboard.tests.layout_browser_smoke import verify as verify_layout
 
 
 def main():
@@ -90,17 +91,18 @@ def main():
                 page.get_by_role("button", name="Start", exact=True).click()
                 assert store.account(ident)["desired"] == 1
                 page.screenshot(path=str(output / "account.png"), full_page=True)
-                page.get_by_role("link", name="← All accounts").click()
+                page.get_by_role("link", name="All accounts", exact=True).click()
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.screenshot(path=str(output / "mobile.png"), full_page=True)
                 assert not page.evaluate("document.documentElement.scrollWidth > innerWidth"), "Mobile horizontal overflow"
                 assert not errors, errors
+                verify_layout(browser, page, origin, account_url, output)
                 verify_setup(browser, page, origin, store, offline, output)
                 verify_keyboard(browser, page, origin, offline, output, "chromium")
                 with playwright.webkit.launch(headless=True) as webkit:
                     verify_keyboard(webkit, page, origin, offline, output, "webkit")
                 browser.close()
-            print("Browser smoke test passed: dashboard/guest flow and Chromium/WebKit mobile keyboard, focus, composition and scrolling fixtures. No physical phone keyboard or live Facebook login was used.")
+            print("Browser smoke test passed: responsive dashboard/drawer/contrast, guest flow and Chromium/WebKit mobile keyboard, focus, composition and scrolling fixtures. No physical phone keyboard or live Facebook login was used.")
         finally:
             server.shutdown()
             thread.join(timeout=5)

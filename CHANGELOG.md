@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — mobile-first dashboard redesign
+
+- Replace decorative dark gradients with a neutral light workspace, one action
+  color, readable type, grouped metrics and restrained status indicators.
+- Add mobile hamburger navigation with focus trapping, Escape/backdrop dismissal
+  and an inert background; keep a persistent sidebar on desktop.
+- Put capture controls first, collapse saved cookie replacement, and simplify
+  invitations, bot settings, sign-in and the guest setup pages.
+- Keep 44 px controls and the existing mobile typing proxy; verify geometry,
+  contrast and overflow at five widths alongside all existing flows.
+
 ## Unreleased — mobile remote-browser keyboard
 
 - Collapse the large typing box on phones and coarse-pointer devices. Tapping

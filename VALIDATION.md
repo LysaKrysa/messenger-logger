@@ -1,5 +1,16 @@
 # Validation
 
+## Dashboard redesign
+
+- Real Flask pages are checked at 320, 390, 768, 1024 and 1440 px for horizontal
+  overflow, page titles, 44 px controls and 4.5:1 normal-text/button contrast.
+- Browser fixtures check mobile navigation focus wrapping/restoration, Escape,
+  backdrop dismissal, actual touch navigation, and breakpoint/orientation changes.
+- Screenshots cover account, bot, invitations, navigation and sign-in on mobile,
+  plus the existing desktop and complete guest setup flow. Long labels wrap.
+- Existing credential isolation, CSRF, approval, media upload, click geometry,
+  handoff recovery and Chromium/WebKit typing regressions remain in place.
+
 ## Mobile keyboard and focus
 
 - JavaScript regressions cover positioning inside a shifted/reduced visual

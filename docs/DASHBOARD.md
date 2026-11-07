@@ -7,6 +7,9 @@ limit is **six Messenger accounts in total**, including your own. Every account
 has a separate worker, session/device state, archive, media directory, and
 Telegram destination. This is an invitation-only deployment for trusted users.
 
+The responsive workspace uses a mobile navigation drawer, grouped summaries and
+44 px controls. See [interface specification](UI_DESIGN.md) for layout and tokens.
+
 ## 1. Install alongside the current logger
 
 Use Ubuntu with systemd, Docker, and the existing pinned image

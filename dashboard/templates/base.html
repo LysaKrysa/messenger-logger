@@ -1,10 +1,44 @@
+{% from 'icons.html' import icon %}
+{% set current = 'bot' if request.endpoint == 'bot_settings' else 'links' if request.endpoint in ['setup_links','setup_disable'] else 'overview' %}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark"><title>{% block title %}Messenger workspace{% endblock %}</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}"><script src="{{ url_for('static', filename='app.js') }}" defer></script><link rel="stylesheet" href="{{ url_for('static', filename='setup.css') }}"></head>
-<body data-refresh="{{ 'true' if request.method == 'GET' and request.endpoint in ['index','account'] else 'false' }}"><div class="shell">
-<aside class="sidebar"><a class="brand" href="{{ url_for('index') }}"><span class="brand-icon">m<span>↗</span></span><span>messenger<span class="brand-sub">PRIVATE WORKSPACE</span></span></a>
-<div class="nav-label">MANAGE</div><nav aria-label="Main navigation"><a class="nav-item {% if request.endpoint not in ['bot_settings','setup_links','setup_disable'] %}active{% endif %}" href="{{ url_for('index') }}"><span>▦</span> Overview</a><a class="nav-item {% if request.endpoint == 'bot_settings' %}active{% endif %}" href="{{ url_for('bot_settings') }}"><span>↗</span> Telegram bot</a><a class="nav-item {% if request.endpoint in ['setup_links','setup_disable'] %}active{% endif %}" href="{{ url_for('setup_links') }}"><span>⌁</span> Setup links</a></nav>
-<div class="sidebar-bottom"><div class="security-dot"></div><strong>Admin workspace</strong><p>Private accounts.<br>One shared delivery bot.</p><form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="text-button">Sign out ↗</button></form></div></aside>
-<main class="main"><header class="topbar"><span>Workspace <span class="slash">/</span> {% block breadcrumb %}Overview{% endblock %}</span><span class="admin-pill"><span class="dot"></span> Administrator</span></header>
-<div class="content">{% block content %}{% endblock %}</div><footer>MESSENGER LOGGER <span>Local message retention · 72 hours</span></footer></main></div></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}Messenger workspace{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='setup.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body data-refresh="{{ 'true' if request.method == 'GET' and request.endpoint in ['index','account'] else 'false' }}">
+<a class="skip-link" href="#main-content">Skip to content</a>
+<div class="shell">
+  <aside class="sidebar" id="workspace-navigation" aria-label="Workspace navigation">
+    <div class="sidebar-heading">
+      <a class="brand" href="{{ url_for('index') }}"><span class="brand-icon" aria-hidden="true">m</span><span>Messenger<span class="brand-sub">Private workspace</span></span></a>
+      <button class="icon-button nav-close" id="nav-close" type="button" aria-label="Close navigation">{{ icon('close') }}</button>
+    </div>
+    <div class="nav-label">Workspace</div>
+    <nav aria-label="Main navigation">
+      <a class="nav-item {{ 'active' if current == 'overview' else '' }}" href="{{ url_for('index') }}" {% if current == 'overview' %}aria-current="page"{% endif %}>{{ icon('grid') }}Overview</a>
+      <a class="nav-item {{ 'active' if current == 'links' else '' }}" href="{{ url_for('setup_links') }}" {% if current == 'links' %}aria-current="page"{% endif %}>{{ icon('link') }}Setup links</a>
+      <a class="nav-item {{ 'active' if current == 'bot' else '' }}" href="{{ url_for('bot_settings') }}" {% if current == 'bot' %}aria-current="page"{% endif %}>{{ icon('send') }}Telegram bot</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="workspace-owner"><span class="owner-avatar" aria-hidden="true">A</span><div><strong>Administrator</strong><p>Private workspace</p></div></div>
+      <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="text-button sign-out">{{ icon('logout') }}Sign out</button></form>
+    </div>
+  </aside>
+  <button class="nav-backdrop" id="nav-backdrop" type="button" tabindex="-1" aria-label="Close navigation" hidden></button>
+  <div class="main" id="workspace-main">
+    <header class="topbar">
+      <div class="topbar-start"><button class="icon-button nav-toggle" id="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="workspace-navigation">{{ icon('menu') }}</button><span class="breadcrumb"><span class="breadcrumb-root">Workspace <span class="slash">/</span></span>{% block breadcrumb %}Overview{% endblock %}</span></div>
+      <span class="admin-pill">{{ icon('lock') }}<span>Admin access</span></span>
+    </header>
+    <main class="content" id="main-content" tabindex="-1">{% block content %}{% endblock %}</main>
+    <footer><span>Messenger Logger</span><span>Local retention: 72 hours</span></footer>
+  </div>
+</div>
+</body>
+</html>
