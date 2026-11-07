@@ -5,8 +5,11 @@
 ## Private bot commands
 
 The first reply to a new user starts with a localized welcome notice pointing to
-`/help` and `/pomoc`, including invitation-link starts. `/start` shows welcome
+`/pomoc` in Polish or `/help` in English, including invitation-link starts. `/start` shows welcome
 and help again. No unsolicited welcome is sent before the user contacts the bot.
+Help displays only the selected language's commands, arguments and explanations;
+it does not list the other language's aliases. Both sets of commands remain
+accepted regardless of the user's reply language.
 
 | English | Polish alias | Effect on your linked account |
 | --- | --- | --- |

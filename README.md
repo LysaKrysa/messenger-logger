@@ -436,7 +436,8 @@ Telegram is optional and disabled by default. Create a bot with **@BotFather**,
 send `/start` to the bot, and obtain the intended destination chat ID.
 Notifications default to **Polish**. With the dashboard's shared bot, each person
 can send `/en` for English or `/pl` for Polish across their own conversation topics.
-The first bot reply points to `/help`. Private commands include `/status`,
+The first bot reply points to localized help (`/pomoc` in Polish, `/help` in English).
+Help shows only the selected language's commands and explanations. Private commands include `/status`,
 `/settings`, `/pause`, `/resume`, `/mode`, `/media` and `/quiet`, with Polish aliases
 and localized replies. See [all commands](docs/TELEGRAM.md#private-bot-commands).
 The choice persists and leaves captured chat text, names and files unchanged.

@@ -1,5 +1,13 @@
 # Validation
 
+## Help language selection
+
+- Check `/help`, `/pomoc` and `/start` in both saved languages: each reply lists
+  only that language's commands and arguments, including translated language names.
+- Verify an English recipient and a default Polish recipient receive different
+  help, both command languages still work, and Polish invitation/welcome hints
+  use Polish commands. Original control/isolation regressions remain in place.
+
 ## Bilingual private bot controls
 
 - Command flows cover first-contact and invitation welcomes, both help languages,

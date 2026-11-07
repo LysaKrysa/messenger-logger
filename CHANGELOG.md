@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — help in the selected language
+
+- Show Polish commands, arguments and explanations for Polish recipients and
+  English commands, arguments and explanations for English recipients.
+- Keep both command languages accepted while removing alternate aliases from
+  help. Match welcome, invitation and usage/privacy hints to the selected language.
+
 ## Unreleased — bilingual private bot controls
 
 - Add owner-scoped status/settings, pause/resume, forwarding mode, media-download
