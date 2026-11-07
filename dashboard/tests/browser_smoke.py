@@ -20,6 +20,7 @@ from dashboard.web import create_app
 from dashboard.tests.setup_browser_smoke import OfflineBrowser, verify as verify_setup
 from dashboard.tests.keyboard_browser_smoke import verify as verify_keyboard
 from dashboard.tests.layout_browser_smoke import verify as verify_layout
+from dashboard.tests.usage_browser_smoke import seed as seed_usage, verify as verify_usage
 
 
 def main():
@@ -43,6 +44,7 @@ def main():
             (status / (ident + ".json")).write_text(json.dumps({"state": "running" if index < 2 else "stopped", "ready": index < 2, "updated": time.time()}))
         (status / "host.json").write_text(json.dumps({"updated": time.time(), "disk_free": int(38.4 * 1024 ** 3)}))
         store.set_setting("bot_status", "Invitation receiver connected")
+        seed_usage(store, root / "accounts", status)
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
@@ -96,6 +98,7 @@ def main():
                 page.screenshot(path=str(output / "mobile.png"), full_page=True)
                 assert not page.evaluate("document.documentElement.scrollWidth > innerWidth"), "Mobile horizontal overflow"
                 assert not errors, errors
+                verify_usage(page, origin, store, output)
                 verify_layout(browser, page, origin, account_url, output)
                 verify_setup(browser, page, origin, store, offline, output)
                 verify_keyboard(browser, page, origin, offline, output, "chromium")

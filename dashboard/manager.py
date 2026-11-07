@@ -14,6 +14,7 @@ import threading
 import time
 
 from .store import Store, DashboardError, account_id, from_environment
+from .usage import UsageCollector
 
 LABEL = "messenger.dashboard"
 
@@ -65,6 +66,7 @@ class Manager:
             if root.is_symlink():
                 raise DashboardError("Manager directories must not be symbolic links.")
         self.last_cleanup = 0
+        self.usage = UsageCollector(self.store, self.data_root, self.status_root, clock=self.clock)
 
     def status(self, ident):
         try:
@@ -223,6 +225,7 @@ class Manager:
             self.last_cleanup = self.clock()
             self.cleanup()
         private_json(self.status_root / "host.json", {"updated": self.clock(), "disk_free": shutil.disk_usage(self.data_root).free}, mode=0o644)
+        self.usage.update(rows)
 
 
 def main():

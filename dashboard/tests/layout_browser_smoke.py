@@ -21,7 +21,7 @@ def verify(browser, admin, origin, account_url, output):
     admin.get_by_role("button", name="Generate setup link").click()
     expect(admin.locator(".invitation-row").filter(has_text="Alex’s setup invitation")).to_be_visible()
     routes = (("/", "overview"), (account_url.removeprefix(origin), "account"),
-              ("/bot", "bot"), ("/setup-links", "invitations"), ("/accounts/new", "new-account"))
+              ("/bot", "bot"), ("/usage", "usage"), ("/setup-links", "invitations"), ("/accounts/new", "new-account"))
     target_check = """() => [...document.querySelectorAll(
       'button, a.button, a.nav-item, a.back-link, summary, label.check'
     )].filter(element => element.getClientRects().length &&
@@ -58,7 +58,7 @@ def verify(browser, admin, origin, account_url, output):
             assert not admin.evaluate("document.documentElement.scrollWidth > innerWidth"), (width, name, "Horizontal overflow")
             assert not admin.evaluate(target_check), (width, name, admin.evaluate(target_check))
             assert not admin.evaluate(contrast_check), (width, name, admin.evaluate(contrast_check))
-            if width == 390 and name in ("account", "bot", "invitations"):
+            if width == 390 and name in ("account", "bot", "invitations", "usage"):
                 admin.screenshot(path=str(output / ("mobile-" + name + ".png")), full_page=True)
         admin.goto(origin + "/")
         # An account label is capped at 80 characters and must wrap safely even
@@ -99,7 +99,11 @@ def verify(browser, admin, origin, account_url, output):
         page.locator("#nav-backdrop").tap(position={"x": 375, "y": 400})
         expect(menu).to_be_hidden()
         toggle.tap()
-        menu.get_by_role("link", name="Telegram bot", exact=True).tap()
+        menu.get_by_role("link", name="Usage", exact=True).tap()
+        page.wait_for_url(origin + "/usage")
+        expect(page.get_by_role("heading", name="Usage", exact=True)).to_be_visible()
+        page.locator("#nav-toggle").tap()
+        page.locator("#workspace-navigation").get_by_role("link", name="Telegram bot", exact=True).tap()
         page.wait_for_url(origin + "/bot")
         expect(page.get_by_role("heading", name="Telegram bot", exact=True)).to_be_visible()
         expect(page.locator("#nav-toggle")).to_have_attribute("aria-expanded", "false")

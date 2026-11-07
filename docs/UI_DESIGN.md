@@ -34,6 +34,8 @@ CSS/JavaScript. No new frontend build or third-party assets are required.
 
 - **Overview:** concise title and Add account action, one shared summary panel,
   account list, then shared bot status. All numbers come from existing state.
+- **Usage:** live resource meters, clearly scoped monthly observations and
+  editable free-tier budgets, manual cloud totals and account storage.
 - **Account:** name/status and capture controls first; forwarding preferences,
   Telegram destination and an expandable session form follow. Saved cookie
   replacement stays collapsed. Status refresh pauses while details are open.
