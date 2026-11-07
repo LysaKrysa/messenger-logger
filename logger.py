@@ -257,6 +257,8 @@ class LoggerRuntime:
 
     def close(self):
         self.stop.set()
+        if self.relay:
+            self.relay.report_status(False, self.last_event)
         if self.media:
             self.media.stopping.set()
         if self.names:

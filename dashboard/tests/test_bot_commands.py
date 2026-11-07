@@ -70,6 +70,7 @@ class CommandTests(Base):
 
     def test_pause_resume_are_owned_idempotent_and_preserve_pairing(self):
         before = self.store.account(self.first)
+        old_key = self.store.worker_key(self.store.account(self.first, private=True))
         self.assertIn("wstrzymanie", self.command("/pauza"))
         paused = self.store.account(self.first)
         self.assertFalse(paused["desired"])
@@ -82,6 +83,9 @@ class CommandTests(Base):
         self.command("/resume")
         self.assertEqual(active["revision"], self.store.account(self.first)["revision"])
         self.assertEqual(active["revision"], before["revision"] + 2)
+        self.assertIsNone(self.store.authenticate_worker(old_key))
+        new_row = self.store.account(self.first, private=True)
+        self.assertIsNotNone(self.store.authenticate_worker(self.store.worker_key(new_row)))
 
     def test_mode_media_quiet_persist_per_owner_without_worker_restart(self):
         revision = self.store.account(self.first)["revision"]

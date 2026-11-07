@@ -161,7 +161,7 @@ class Store:
                 desired = int(command == "resume")
                 if desired and not row["cookies"]:
                     return False
-                db.execute("UPDATE accounts SET desired=?,revision=revision+1 WHERE id=? AND desired<>?", (desired, ident, desired))
+                db.execute("UPDATE accounts SET desired=?,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=? AND desired<>?", (desired, ident, desired))
             elif command == "mode" and value in {"all", "deleted"}:
                 if row["mode"] != value:
                     controls["mode_since"] = now

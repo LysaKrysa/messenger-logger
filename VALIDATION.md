@@ -6,6 +6,8 @@
   Polish aliases/arguments, per-user persistent settings, idempotent pause/resume,
   and rejection of group, mismatched-sender, other-bot, malformed, unpaired and
   pending-approval requests. Duplicate/uncertain updates are not replayed.
+- Pause/resume rotate worker credentials on actual state changes; a stale worker
+  key stays revoked after resume while the new worker uses its new key.
 - Real Flask gateway integration checks live mode/media changes without worker
   revision changes, continued local quiet captures, delayed media suppression,
   early quiet cancellation/expiry and a quiet change between settings and send.
