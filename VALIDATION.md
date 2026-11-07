@@ -1,5 +1,23 @@
 # Validation
 
+## Per-user Telegram languages
+
+- Two live relay instances through the real Flask gateway follow only their
+  owners' `/en` and `/pl` commands; preferences survive reopening the store and
+  disconnects, can be chosen before pairing, and never change account revisions.
+- Sender/chat/address/argument checks prevent one user from targeting another.
+  Worker locale reads are authenticated, empty-body, owner-scoped and read-only;
+  invalid or revoked requests cannot access another user's preference.
+- Polish/English formatting checks preserve original text, names, HTML literals,
+  emoji UTF-16 entities, edits/reactions, filenames and exact media bytes. ZIPs
+  contain localized full details and remain a single notification. Prior-run
+  reaction quotes stay excluded. Dates and Polish plural forms are deterministic.
+- Upload buttons, download callbacks and requested copies follow the recipient's
+  language. Lookup failure retains the worker's last language. The upgrade
+  command schedules only desired-running accounts and preserves paused accounts.
+- These tests use synthetic identities/files and fake Telegram responses. No
+  real Facebook login, message capture or Telegram send is performed.
+
 ## Telegram download buttons
 
 - Multipart gateway checks keep exact voice/file/ZIP bytes and captions while

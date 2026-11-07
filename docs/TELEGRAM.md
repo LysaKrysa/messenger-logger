@@ -2,12 +2,62 @@
 
 [← README](../README.md#telegram-forwarding) · [Troubleshooting](TROUBLESHOOTING.md)
 
+## Language per user
+
+The shared bot defaults to **Polish**. Each person can choose their own language
+by sending a command in their private bot chat or any of its conversation topics:
+
+| Command | Result |
+| --- | --- |
+| `/en` | English for that person's future bot messages. |
+| `/pl` | Polish again for that person. |
+| `/help` | Help in that person's selected language. |
+
+The choice is saved by Telegram user ID, persists across restarts and pairing
+changes, and applies across that person's topics. It does not change anyone
+else's language. A person can choose before pairing. The logger reads its owner's
+preference before each notification; commands require no worker restart.
+
+This translates generated titles, dates, labels, bot replies, download buttons,
+file captions and the details inside `message.txt`/ZIP downloads. Captured chat
+text, quoted replies, edits, reactions, names, filenames and media bytes keep
+their original content. Existing Telegram messages and buttons are not edited.
+Server journals and local message views keep their existing format.
+
+The standalone logger also defaults to Polish. Set `TELEGRAM_LANGUAGE=en` in its
+private environment file and restart it to select English. The `/en` and `/pl`
+commands require the dashboard's shared receiver; a standalone relay does not
+poll bot updates.
+
+### Updating an existing dashboard
+
+The first language update changes both the gateway and account-worker code.
+From a downloaded, extracted release, install these files into the existing
+dashboard installation:
+
+```bash
+sudo install --backup=numbered -m 644 \
+  event_store.py telegram_relay.py telegram_format.py telegram_i18n.py telegram_topics.py \
+  /opt/messenger-dashboard/app/
+sudo install --backup=numbered -m 644 dashboard/broker.py dashboard/store.py dashboard/cli.py \
+  /opt/messenger-dashboard/app/dashboard/
+sudo systemctl restart messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
+sudo messenger-dashboard-admin restart-active
+```
+
+`restart-active` schedules a one-time restart for accounts already configured to
+run; stopped accounts stay stopped. Workers briefly reconnect and resume future
+capture from their restart time. Existing credentials, pairing, Telegram copies
+and retained local archives are preserved. Dashboard workers mount this source,
+so this update needs no native image rebuild. Future `/en` and `/pl` commands
+take effect on the next notification without another restart.
+
 
 ## Download buttons in the shared bot
 
 New document notifications sent through the dashboard gateway include an inline
-**Download file** button. Voice recordings are sent as documents too. Bundled
-notifications use **Download ZIP**. The original notification remains one file
+**Pobierz plik** button (**Download file** in English). Voice recordings are sent
+as documents too. Bundled notifications use **Pobierz ZIP** / **Download ZIP**. The original notification remains one file
 plus its caption; the gateway does not send another message automatically.
 
 Pressing the button explicitly requests one downloadable document copy, replying
@@ -31,9 +81,7 @@ Rapid taps are limited. An uncertain send is not automatically retried. The
 single invitation receiver also handles callbacks; do not run another poller.
 
 Only new shared-gateway uploads get these buttons. Existing messages and the
-standalone relay keep Telegram's built-in attachment download controls. To apply
-this feature, replace the release's dashboard/broker.py and restart
-messenger-dashboard-bot; account workers need no rebuild or restart.
+standalone relay keep Telegram's built-in attachment download controls.
 
 Reference: [Telegram inline keyboards and callbacks](https://core.telegram.org/bots/api#inlinekeyboardbutton).
 

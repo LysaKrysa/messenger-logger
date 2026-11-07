@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from telegram_i18n import tr, language as normalize_language, attachments as attachment_count
 
 
 def units(text):
@@ -53,88 +54,120 @@ class RichText:
             offset += length
 
 
-def stamp(value, zone):
-    return datetime.fromtimestamp(value / 1000, zone).strftime("%d %b · %H:%M:%S %Z") if value else "Not captured"
+def stamp(value, zone, language="pl"):
+    if not value:
+        return tr(language, "not_captured")
+    date = datetime.fromtimestamp(value / 1000, zone)
+    months = ("sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru") if normalize_language(language) == "pl" else ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    return f"{date.day:02d} {months[date.month - 1]} · " + date.strftime("%H:%M:%S %Z")
 
 
-def file_size(value):
+def file_size(value, language="pl"):
     value = value if isinstance(value, (int, float)) and value >= 0 else 0
     if value >= 1024 * 1024:
-        return f"{value / (1024 * 1024):.1f} MB"
-    return f"{value / 1024:.0f} KB" if value >= 1024 else f"{value:.0f} bytes"
+        amount = f"{value / (1024 * 1024):.1f}"
+        return (amount.replace(".", ",") if normalize_language(language) == "pl" else amount) + " MB"
+    if value >= 1024:
+        return f"{value / 1024:.0f} KB"
+    count = round(value)
+    if normalize_language(language) == "en":
+        return f"{count} bytes"
+    word = "bajt" if count == 1 else "bajty" if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14) else "bajtów"
+    return f"{count} {word}"
 
 
-def media_label(media):
-    return {"image": "Photo", "video": "Video", "gif": "GIF", "sticker": "Sticker", "voice": "Voice message", "audio": "Audio", "document": "File", "file": "File"}.get(media.get("type"), "Attachment")
+def media_label(media, language="pl"):
+    kind = media.get("type")
+    return tr(language, kind if kind in {"image", "video", "gif", "sticker", "voice", "audio", "document", "file"} else "attachment")
 
 
-def message_card(item, zone):
+def display(item, key, language, fallback="unknown"):
+    kind = item.get(key + "_kind")
+    if kind in {"unknown", "self", "unnamed"}:
+        return tr(language, kind)
+    return item.get(key) or tr(language, fallback)
+
+
+def message_card(item, zone, language="pl"):
     result = RichText()
     once = any(media.get("viewOnce") for media in item["attachments"])
-    title = "🗑 Deleted message" if item["deleted"] else ("👁 View-once message" if once else "💬 Message captured")
+    title = tr(language, "deleted_message" if item["deleted"] else "once_message" if once else "captured_message")
     result.add(title, "bold").add("\n\n")
-    result.add("👤 ").add(item["sender"], "bold").add("\n💬 ").add(item["conversation"], "bold").add("\n")
-    result.add("Sent  " + stamp(item["created_ms"], zone), "italic")
+    result.add("👤 ").add(display(item, "sender", language), "bold").add("\n💬 ").add(display(item, "conversation", language, "unnamed"), "bold").add("\n")
+    result.add(tr(language, "sent") + "  " + stamp(item["created_ms"], zone, language), "italic")
     if item["deleted"]:
-        result.add("\n").add("Deleted  " + stamp(item["deleted_at_ms"], zone), "italic")
+        result.add("\n").add(tr(language, "deleted") + "  " + stamp(item["deleted_at_ms"], zone, language), "italic")
     result.add("\n\n")
     original = item["original_text"]
     if original is None:
-        result.add("Content was not captured before deletion; it cannot be recovered from the log.", "italic")
+        result.add(tr(language, "missing_content"), "italic")
     elif original:
         result.quote(original)
     elif not item["attachments"]:
-        result.add("No supported text or attachment was captured.", "italic")
+        result.add(tr(language, "empty_capture"), "italic")
     if item.get("last_edit_ms") and item["text"] != original:
-        result.add("\n\n").add("✏️ Edited version", "bold").add("\n").quote(item["text"] or "[Empty text]")
+        result.add("\n\n").add(tr(language, "edited_version"), "bold").add("\n").quote(item["text"] or tr(language, "empty_text"))
     reply = item.get("reply") or {}
     if reply:
-        result.add("\n\n").add("↩ Reply to " + reply.get("sender_name", "Unknown participant"), "bold")
+        result.add("\n\n").add(tr(language, "reply_to") + display(reply, "sender_name", language), "bold")
         if reply.get("text"):
             result.add("\n").quote(reply["text"])
     mentions = item.get("metadata", {}).get("mentions", [])
     if mentions:
-        result.add("\n\nMentions  " + ", ".join(person.get("name") or "Unknown participant" for person in mentions))
+        result.add("\n\n" + tr(language, "mentions") + "  " + ", ".join(display(person, "name", language) for person in mentions))
     attachments = item["attachments"]
     if attachments:
-        result.add("\n\n").add("📎 " + str(len(attachments)) + (" attachment" if len(attachments) == 1 else " attachments"), "bold")
+        result.add("\n\n").add("📎 " + attachment_count(len(attachments), language), "bold")
         for media in attachments:
-            status = {"saved": "Saved", "pending": "Downloading…", "failed": "Unavailable", "interrupted": "Download interrupted"}.get(media.get("downloadStatus"), "Metadata only")
-            parts = [media_label(media)]
+            status = media.get("downloadStatus")
+            status = tr(language, status if status in {"saved", "pending", "failed", "interrupted"} else "metadata_only")
+            parts = [media_label(media, language)]
             if media.get("viewOnce"):
-                parts.append({"once": "view once", "replay": "limited replay"}.get(media.get("viewMode"), "disappearing"))
+                mode = media.get("viewMode")
+                parts.append(tr(language, mode if mode in {"once", "replay"} else "disappearing"))
             if media.get("fileName"):
                 parts.append(str(media["fileName"]))
             if media.get("savedBytes"):
-                parts.append(file_size(media["savedBytes"]))
+                parts.append(file_size(media["savedBytes"], language))
             parts.append(status)
             result.add("\n• " + " · ".join(parts))
     return result
 
 
-def attachment_card(item, media, index, zone, *, status=None):
+def attachment_card(item, media, index, zone, *, status=None, language="pl"):
     result = RichText()
-    heading = "📎 Deleted attachment" if item["deleted"] else ("👁 View-once attachment" if media.get("viewOnce") else "📎 Attachment")
+    heading = tr(language, "deleted_attachment" if item["deleted"] else "once_attachment" if media.get("viewOnce") else "attachment_title")
     result.add(heading, "bold").add("\n")
-    # Bound caption components individually so the filename and status survive
-    # even when a display name or conversation title is unusually long.
-    result.add(item["sender"][:150], "bold").add("\n").add(item["conversation"][:150]).add("\n")
-    label = str(media.get("fileName") or media_label(media))
+    result.add(display(item, "sender", language)[:150], "bold").add("\n").add(display(item, "conversation", language, "unnamed")[:150]).add("\n")
+    label = str(media.get("fileName") or media_label(media, language))
     result.add(str(index + 1) + "/" + str(len(item["attachments"])) + " · " + label[:150])
     if media.get("savedBytes"):
-        result.add(" · " + file_size(media["savedBytes"]))
-    result.add("\n").add(stamp(item["created_ms"], zone), "italic")
+        result.add(" · " + file_size(media["savedBytes"], language))
+    result.add("\n").add(stamp(item["created_ms"], zone, language), "italic")
     if status:
         result.add("\n\n").add(status, "italic")
     return result
 
 
-def download_caption(item, detail):
-    title = "🗑 Deleted message" if item["deleted"] else "💬 Message captured"
-    return (RichText().add(title, "bold").add("\n\n👤 ").add(item["sender"][:100], "bold")
-            .add("\n💬 ").add(item["conversation"][:100], "bold").add("\n\n" + detail))
+def download_caption(item, detail, language="pl"):
+    title = tr(language, "deleted_message" if item["deleted"] else "captured_message")
+    return (RichText().add(title, "bold").add("\n\n👤 ").add(display(item, "sender", language)[:100], "bold")
+            .add("\n💬 ").add(display(item, "conversation", language, "unnamed")[:100], "bold").add("\n\n" + detail))
 
 
-def event_card(conversation, body, kind):
-    title = {"edit": "✏️ Message edited", "reaction": "💟 Reaction"}.get(kind, "💬 Chat update")
-    return RichText().add(title, "bold").add("\n\n").add(conversation, "bold").add("\n\n").quote(body)
+def event_card(conversation, body, kind, language="pl", *, event=None):
+    title = tr(language, {"edit": "edited_event", "reaction": "reaction_event"}.get(kind, "chat_event"))
+    result = RichText().add(title, "bold").add("\n\n").add(
+        tr(language, event["conversation_kind"]) if event and event.get("conversation_kind") in {"unknown", "unnamed", "self"} else conversation, "bold").add("\n\n")
+    if not isinstance(event, dict):
+        return result.quote(body)
+    if kind == "edit":
+        return result.add(tr(language, "edit_reference", message_id=event["message_id"])).add("\n").quote(event.get("text") or tr(language, "empty_text"))
+    if kind == "reaction":
+        result.add(display(event, "sender", language), "bold").add("\n")
+        result.add(tr(language, "reaction_reference" if event.get("reaction") else "reaction_removed",
+                      reaction=event.get("reaction", ""), message_id=event["message_id"]))
+        if event.get("original") is not None:
+            result.add("\n\n").add(display(event, "original_sender", language), "bold").add("\n").quote(event["original"] or tr(language, "attachment"))
+        return result
+    return result.quote(body)

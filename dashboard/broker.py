@@ -13,9 +13,10 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from .store import DashboardError, from_environment
+from telegram_i18n import tr
 
 METHODS = {
-    "getMe": set(), "getChat": {"chat_id"},
+    "getMe": set(), "getLocale": set(), "getChat": {"chat_id"},
     "getChatMember": {"chat_id", "user_id"},
     "createForumTopic": {"chat_id", "name", "icon_color"},
     "editForumTopic": {"chat_id", "message_thread_id", "name"},
@@ -30,8 +31,8 @@ MULTIPART_MEMORY = 128 * 1024
 DOWNLOAD_CALLBACK = "download_document:v1"
 
 
-def download_markup(filename):
-    label = "⬇ Download ZIP" if filename.lower().endswith(".zip") else "⬇ Download file"
+def download_markup(filename, language="pl"):
+    label = tr(language, "download_zip" if filename.lower().endswith(".zip") else "download_file")
     return {"inline_keyboard": [[{"text": label, "callback_data": DOWNLOAD_CALLBACK}]]}
 
 
@@ -118,35 +119,48 @@ class PairingReceiver:
         if not isinstance(message, dict):
             return
         chat, sender = message.get("chat", {}), message.get("from", {})
+        if not isinstance(chat, dict) or not isinstance(sender, dict):
+            return
         chat_id = chat.get("id")
-        if chat.get("type") != "private" or type(chat_id) is not int or chat_id <= 0 or sender.get("id") != chat_id or sender.get("is_bot"):
+        if chat.get("type") != "private" or type(chat_id) is not int or chat_id <= 0 or type(sender.get("id")) is not int or sender.get("id") != chat_id or sender.get("is_bot"):
             return
         if not self.store.take_limit("pair:" + str(chat_id), 6, 60):
             return
         text = message.get("text", "")
         if not isinstance(text, str) or len(text) > 256:
             return
-        command, _, parameter = text.partition(" ")
-        command = command.split("@", 1)[0]
-        if command == "/start" and parameter:
+        command, _, parameter = text.strip().partition(" ")
+        command, addressed, username = command.partition("@")
+        bot = self.store.bot()
+        if addressed and (not bot or username.casefold() != bot["username"].casefold()):
+            return
+        language = self.store.telegram_language(chat_id)
+        if command in {"/en", "/pl"}:
+            if parameter.strip():
+                return
+            language = command[1:]
+            self.store.set_telegram_language(chat_id, language)
+            reply = tr(language, "language_saved")
+        elif command == "/start" and parameter:
             username = sender.get("username")
             label = "@" + username if isinstance(username, str) and re.fullmatch(r"[A-Za-z0-9_]{1,64}", username) else "Telegram user " + str(chat_id)
             accepted = self.store.claim_invite(parameter.strip(), chat_id, label)
-            reply = ("Pairing requested. Ask the administrator to approve your Telegram identity in the dashboard. "
-                     "Your linked Messenger messages and media can then be saved and relayed here. "
-                     "The server administrator has access to that account's archive. Local copies expire after three days; Telegram copies remain. "
-                     "Use /disconnect to cancel or stop logging.") if accepted else "This invitation is expired, already used, or unavailable. Ask the administrator for a new invitation."
+            reply = tr(language, "pair_requested" if accepted else "pair_unavailable")
         elif command in {"/disconnect", "/stop"}:
             self.store.disconnect_user(chat_id)
-            reply = "Telegram pairing removed. Your linked logger is being stopped. Existing Telegram copies remain."
+            reply = tr(language, "disconnected")
         elif command == "/privacy":
-            reply = "This bot delivers copies from a Messenger account linked by the administrator. The administrator can access stored credentials and archives. Local message copies expire after three days; Telegram copies remain. Use /disconnect to stop your linked logger."
+            reply = tr(language, "privacy")
         elif command in {"/start", "/help"}:
-            reply = "Open the administrator's invitation link to request pairing. Your account remains separate from other users. Commands: /privacy and /disconnect. Never send Messenger cookies or passwords to this bot."
+            reply = tr(language, "help")
         else:
             return
         try:
-            self.api.json("sendMessage", {"chat_id": chat_id, "text": reply, "disable_notification": True})
+            params = {"chat_id": chat_id, "text": reply, "disable_notification": True}
+            topic = message.get("message_thread_id")
+            if type(topic) is int and 0 < topic < 2**53:
+                params["message_thread_id"] = topic
+            self.api.json("sendMessage", params)
         except BotUnavailable:
             pass  # Pairing state is durable; do not repeat an uncertain reply.
 
@@ -164,8 +178,9 @@ class PairingReceiver:
         if not isinstance(query_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", query_id):
             return
         sender, message = query.get("from"), query.get("message")
+        language = self.store.telegram_language(sender.get("id")) if isinstance(sender, dict) else "pl"
         if not isinstance(sender, dict) or not isinstance(message, dict):
-            self.answer_download(query_id, "This download is unavailable.", alert=True)
+            self.answer_download(query_id, tr(language, "download_unavailable"), alert=True)
             return
         sender_id = sender.get("id")
         if type(sender_id) is int and sender_id > 0 and not self.store.take_limit("download-callback:" + str(sender_id), 12, 60):
@@ -188,14 +203,14 @@ class PairingReceiver:
                  and type(message_id) is int and 0 < message_id < 2**53
                  and (topic_id is None or type(topic_id) is int and 0 < topic_id < 2**53))
         if not valid:
-            self.answer_download(query_id, "This download is unavailable for this conversation.", alert=True)
+            self.answer_download(query_id, tr(language, "download_denied"), alert=True)
             return
         if not self.store.take_limit("download-user:" + str(owner), 6, 60) or not self.store.take_limit("download-message:" + str(owner) + ":" + str(message_id), 1, 15):
-            self.answer_download(query_id, "Wait a moment before requesting another copy.", alert=True)
+            self.answer_download(query_id, tr(language, "download_wait"), alert=True)
             return
-        self.answer_download(query_id, "Sending a downloadable file copy.")
+        self.answer_download(query_id, tr(language, "download_sending"))
         params = {"chat_id": account["chat_id"], "document": file_id,
-                  "caption": "Requested download. Open the attachment and use Telegram’s Save/Download option.",
+                  "caption": tr(language, "download_caption"),
                   "disable_content_type_detection": True, "disable_notification": True,
                   "reply_parameters": {"message_id": message_id, "allow_sending_without_reply": False}}
         if topic_id is not None:
@@ -237,7 +252,7 @@ class PairingReceiver:
 def validate_destination(method, params, account, bot):
     if set(params) - METHODS[method]:
         raise DashboardError("Request fields are not permitted.")
-    if method != "getMe" and str(params.get("chat_id")) != str(account["chat_id"]):
+    if method not in {"getMe", "getLocale"} and str(params.get("chat_id")) != str(account["chat_id"]):
         raise DashboardError("Destination does not belong to this account.")
     if method == "getChatMember" and str(params.get("user_id")) != str(bot["id"]):
         raise DashboardError("Only the shared bot's membership may be checked.")
@@ -266,6 +281,13 @@ def create_app(store=None, api=None):
         if method not in METHODS:
             return jsonify(ok=False, error_code=403, description="Gateway method is not permitted"), 403
         try:
+            if method == "getLocale":
+                if request.content_length is None or request.content_length > 256:
+                    raise DashboardError("Locale requests must be empty JSON objects.")
+                params = request.get_json(silent=True)
+                if params != {}:
+                    raise DashboardError("Locale requests must be empty JSON objects.")
+                return jsonify(ok=True, result={"language": store.telegram_language(account["chat_id"])})
             bot = store.bot()
             if not bot:
                 raise BotUnavailable
@@ -285,7 +307,7 @@ def create_app(store=None, api=None):
                 # The gateway, not a worker, owns the keyboard and callback.
                 # Future uploads remain one document notification; only an
                 # explicit, owner-checked button press requests another copy.
-                params["reply_markup"] = json.dumps(download_markup(upload.filename or "attachment.bin"))
+                params["reply_markup"] = json.dumps(download_markup(upload.filename or "attachment.bin", store.telegram_language(account["chat_id"])))
                 params["disable_content_type_detection"] = "true"
                 boundary = "gateway-" + secrets.token_hex(16)
                 prefix = b""

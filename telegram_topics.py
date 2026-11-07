@@ -9,6 +9,7 @@ from pathlib import Path
 import sqlite3
 import time
 
+from telegram_i18n import tr
 from identities import display_label
 
 COLORS = (7322096, 16766590, 13338331, 9367192, 16749490, 16478047)
@@ -24,14 +25,15 @@ class TelegramRejected(RuntimeError):
         super().__init__("Telegram rejected a request (code=" + str(code) + ").")
 
 
-def topic_title(name):
-    name = display_label(name) or "Conversation"
+def topic_title(name, language="en"):
+    name = display_label(name) or tr(language, "conversation")
     # Satisfy both the Bot API character cap and underlying UTF-8 limits.
-    return name.encode("utf-8")[:128].decode("utf-8", errors="ignore").strip() or "Conversation"
+    return name.encode("utf-8")[:128].decode("utf-8", errors="ignore").strip() or tr(language, "conversation")
 
 
 class TopicRouter:
-    def __init__(self, api, store, bot_id, chat_id):
+    def __init__(self, api, store, bot_id, chat_id, *, language="en"):
+        self.language = language
         self.api, self.store = api, store
         self.bot_id, self.requested_chat = str(bot_id), str(chat_id)
         self.chat_id = None
@@ -68,7 +70,7 @@ class TopicRouter:
 
     def unique_title(self, name):
         existing = self.store.telegram_topic_names(self.bot_id, self.chat_id)
-        base = topic_title(name)
+        base = topic_title(name, self.language)
         title, index = base, 2
         while title in existing:
             suffix = " (" + str(index) + ")"
@@ -95,7 +97,7 @@ class TopicRouter:
                 else:
                     self.store.save_telegram_topic(self.bot_id, self.chat_id, thread_id, mapping["topic_id"], title)
             return mapping["topic_id"]
-        title = self.unique_title("Unmatched messages" if thread_id == "unresolved" else name)
+        title = self.unique_title(tr(self.language, "unmatched") if thread_id == "unresolved" else name)
         if not self.store.reserve_telegram_topic(self.bot_id, self.chat_id, thread_id, title, fallback):
             raise TopicError("Another topic creation is in progress; local content is saved.")
         return self._create_reserved(thread_id, title, fallback)

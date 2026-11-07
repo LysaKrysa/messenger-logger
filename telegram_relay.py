@@ -24,11 +24,12 @@ from zoneinfo import ZoneInfo
 
 from telegram_format import RichText, chunks, message_card, download_caption, event_card
 from telegram_topics import TopicRouter, TopicError, TelegramRejected
+from telegram_i18n import tr, LANGUAGES
 
 # Cloud Bot API multipart uploads: https://core.telegram.org/bots/api#sending-files
 MAX_UPLOAD_BYTES = 50_000_000
 ERROR_RESPONSE_BYTES = 8192
-API_METHODS = frozenset({"getMe", "getChat", "getChatMember", "createForumTopic",
+API_METHODS = frozenset({"getLocale", "getMe", "getChat", "getChatMember", "createForumTopic",
                          "editForumTopic", "sendMessage", "sendDocument"})
 
 
@@ -38,7 +39,9 @@ class TelegramConfigurationError(ValueError):
 
 class AttachmentUnavailable(ValueError):
     """A local validation failure, before any Telegram upload was attempted."""
-    pass
+    def __init__(self, key):
+        self.key = key
+        super().__init__(tr("en", key))
 
 
 def _request_details(method, code, reason):
@@ -116,6 +119,7 @@ class TelegramRelay:
         self.enabled = boolean("TELEGRAM_ENABLED", False)
         self.report, self.store = report, store
         self.zone = ZoneInfo(timezone)
+        self.language = "pl"
         self.mode = os.environ.get("TELEGRAM_MODE", "deleted").lower()
         self.send_media = boolean("TELEGRAM_SEND_MEDIA", True)
         self.view_once = boolean("TELEGRAM_VIEW_ONCE", False)
@@ -133,6 +137,9 @@ class TelegramRelay:
             self.token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
             self.chat = os.environ.get("TELEGRAM_CHAT_ID", "")
             self.gateway = os.environ.get("TELEGRAM_RELAY_URL", "")
+            self.language = "pl" if self.gateway else os.environ.get("TELEGRAM_LANGUAGE", "pl").lower()
+            if self.language not in LANGUAGES:
+                raise TelegramConfigurationError("TELEGRAM_LANGUAGE must be pl or en.")
             self.account_key = os.environ.get("TELEGRAM_ACCOUNT_KEY", "")
             bot_id = self.token.split(":", 1)[0]
             if self.gateway:
@@ -150,7 +157,7 @@ class TelegramRelay:
             if (not self.gateway and not re.fullmatch(r"[0-9]+:[A-Za-z0-9_-]{20,}", self.token)) or not self.chat.strip() or len(self.chat) > 128 or any(char in self.chat for char in "\r\n"):
                 raise TelegramConfigurationError("Telegram requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
             if self.use_topics:
-                self.topics = TopicRouter(self._api, store, bot_id, self.chat)
+                self.topics = TopicRouter(self._api, store, bot_id, self.chat, language=self.language)
             if start:
                 self.thread = threading.Thread(target=self._work, name="telegram-relay", daemon=True)
                 self.thread.start()
@@ -199,9 +206,10 @@ class TelegramRelay:
         return snapshot["run_id"] == self.store.run_id and (once or self.mode == "all")
 
     def _post(self, method, body, content_type="application/json", *, length=None):
-        if self.stopping.wait(max(0.0, self.next_send - time.monotonic())):
-            raise InterruptedError
-        self.next_send = time.monotonic() + self.interval
+        if method != "getLocale":
+            if self.stopping.wait(max(0.0, self.next_send - time.monotonic())):
+                raise InterruptedError
+            self.next_send = time.monotonic() + self.interval
         headers = {"Content-Type": content_type}
         if self.gateway:
             headers["Authorization"] = "Bearer " + self.account_key
@@ -211,7 +219,7 @@ class TelegramRelay:
         request = Request(url,
                           data=body, headers=headers, method="POST")
         try:
-            with urlopen(request, timeout=30) as response:
+            with urlopen(request, timeout=3 if method == "getLocale" else 30) as response:
                 raw = response.read(1024 * 1024 + 1)
         except HTTPError as exc:
             # Inspect a bounded error body privately, then discard it. Never log
@@ -252,6 +260,19 @@ class TelegramRelay:
 
     def _api(self, method, parameters):
         return self._post(method, json.dumps(parameters).encode())
+
+    def _language(self):
+        if getattr(self, "gateway", ""):
+            try:
+                preferences = self._api("getLocale", {})
+                candidate = preferences.get("language") if isinstance(preferences, dict) else None
+                if isinstance(candidate, str) and candidate in LANGUAGES:
+                    self.language = candidate
+            except (TelegramAPIRejected, TelegramRequestError):
+                pass  # Keep this worker's last language if the local lookup fails.
+        if self.topics is not None:
+            self.topics.language = self.language
+        return self.language
 
     def _topic(self, thread_id, title):
         return self.topics.topic(thread_id, title) if self.topics is not None else None
@@ -324,20 +345,20 @@ class TelegramRelay:
         root = self.store.root / "media"
         target = self.store.root / relative
         if relative.is_absolute() or not relative.parts or relative.parts[0] != "media" or not target.resolve().is_relative_to(root):
-            raise AttachmentUnavailable("A saved attachment is unavailable; captured details remain local.")
+            raise AttachmentUnavailable("file_unavailable")
         try:
             descriptor = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         except OSError:
-            raise AttachmentUnavailable("A saved attachment is unavailable; captured details remain local.") from None
+            raise AttachmentUnavailable("file_unavailable") from None
         with os.fdopen(descriptor, "rb") as handle:
             info = os.fstat(handle.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_UPLOAD_BYTES or info.st_size != media.get("savedBytes"):
-                raise AttachmentUnavailable("An attachment is unavailable or exceeds Telegram's file-upload limit; files remain local.")
+                raise AttachmentUnavailable("file_limit")
             digest = hashlib.sha256()
             while block := handle.read(65536):
                 digest.update(block)
             if digest.hexdigest() != media.get("sha256"):
-                raise AttachmentUnavailable("A saved attachment failed its integrity check; files remain local.")
+                raise AttachmentUnavailable("file_integrity")
             filename = re.sub(r'[^A-Za-z0-9._-]', "_", target.name)[:150] or "attachment.bin"
             handle.seek(0)
             yield handle, filename
@@ -345,7 +366,7 @@ class TelegramRelay:
     def _upload(self, handle, filename, caption, *, topic_id=None, route=None):
         size = handle.seek(0, os.SEEK_END)
         if size > MAX_UPLOAD_BYTES:
-            raise AttachmentUnavailable("The combined download exceeds Telegram's file-upload limit; files remain local.")
+            raise AttachmentUnavailable("bundle_limit")
         rich = caption if isinstance(caption, RichText) else RichText().add(caption)
         if rich.length > 900:
             raise ValueError("Use a downloadable transcript for long captions.")
@@ -378,19 +399,19 @@ class TelegramRelay:
         with self._saved_file(media) as (handle, filename):
             return self._upload(handle, filename, caption, topic_id=topic_id, route=route)
 
-    def _transcript(self, notice, card, route):
+    def _transcript(self, notice, card, route, language):
         if card.length <= 3500:
             self._text(card, route=route)
         else:
             with tempfile.TemporaryFile(dir=self.store.root) as output:
                 output.write(card.text.encode("utf-8"))
-                self._upload(output, "message.txt", download_caption(notice, "Full message details in message.txt."), route=route)
+                self._upload(output, "message.txt", download_caption(notice, tr(language, "message_details"), language), route=route)
 
-    def _notice(self, snapshot, notice, card, route):
+    def _notice(self, snapshot, notice, card, route, language):
         saved = [media for media in snapshot["attachments"] if media.get("downloadStatus") == "saved"] if self.send_media else []
         try:
             if not saved:
-                self._transcript(notice, card, route)
+                self._transcript(notice, card, route, language)
             elif len(saved) == 1 and card.length <= 900:
                 self._document(saved[0], card, route=route)
             else:
@@ -398,7 +419,7 @@ class TelegramRelay:
                 # leave an extra archive behind after the retention deadline.
                 details = card.text.encode("utf-8")
                 if len(details) + sum(media.get("savedBytes", 0) for media in saved) > MAX_UPLOAD_BYTES:
-                    raise AttachmentUnavailable("The combined download exceeds Telegram's file-upload limit; files remain local.")
+                    raise AttachmentUnavailable("bundle_limit")
                 with tempfile.TemporaryFile(dir=self.store.root) as output:
                     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as bundle:
                         bundle.writestr("message.txt", details)
@@ -409,9 +430,9 @@ class TelegramRelay:
                                         if self.stopping.is_set():
                                             raise InterruptedError
                                         destination.write(block)
-                    self._upload(output, "message-attachments.zip", download_caption(notice, "Download the ZIP for attachments and full message details."), route=route)
+                    self._upload(output, "message-attachments.zip", download_caption(notice, tr(language, "zip_details"), language), route=route)
         except AttachmentUnavailable as exc:
-            self._transcript(notice, card.add("\n\n" + str(exc), "italic"), route)
+            self._transcript(notice, card.add("\n\n" + tr(language, exc.key), "italic"), route, language)
 
     def _deleted(self, tid, mid):
         snapshot = self.store.relay_snapshot(tid, mid)
@@ -424,12 +445,13 @@ class TelegramRelay:
             snapshot = self.store.relay_snapshot(tid, mid)
             if not snapshot or not self._eligible(snapshot):
                 return
-        route = self._route(tid, snapshot["conversation"])
+        language = self._language()
+        route = self._route(tid, "" if snapshot.get("conversation_kind") else snapshot["conversation"])
         notice = dict(snapshot)
         notice["attachments"] = [{key: value for key, value in item.items() if key not in {"url", "previewUrl", "localPath"}}
                                  for item in snapshot["attachments"]]
         phase = "deleted" if snapshot["deleted"] else "message"
-        self._attempt(tid, mid, "notice:" + phase, lambda: self._notice(snapshot, notice, message_card(notice, self.zone), route))
+        self._attempt(tid, mid, "notice:" + phase, lambda: self._notice(snapshot, notice, message_card(notice, self.zone, language), route, language))
 
     def _work(self):
         while not self.stopping.is_set():
@@ -445,8 +467,10 @@ class TelegramRelay:
                     self._deleted(*item)
                 else:
                     plain = html.unescape(re.sub(r"<[^>]+>", "", item["body"]))
-                    route = self._route(item["thread_id"], item["thread"])
-                    self._text(event_card(item["thread"], plain, item["type"]), route=route)
+                    language = self._language()
+                    event = item.get("telegram")
+                    route = self._route(item["thread_id"], "" if isinstance(event, dict) and event.get("conversation_kind") else item["thread"])
+                    self._text(event_card(item["thread"], plain, item["type"], language, event=event), route=route)
             except TopicError as exc:
                 self.report("Telegram topics: " + str(exc) + " Local content remains saved.")
             except Exception as exc:

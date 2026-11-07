@@ -39,8 +39,8 @@ class DownloadButtonTests(Base):
                                       "document": (io.BytesIO(b"SYNTHETIC_VOICE_BYTES"), filename)})
 
     def test_future_voice_and_attachment_uploads_have_gateway_owned_buttons(self):
-        for filename, label in (("voice.ogg", "⬇ Download file"), ("photo.jpg", "⬇ Download file"),
-                                ("message-attachments.zip", "⬇ Download ZIP")):
+        for filename, label in (("voice.ogg", "⬇ Pobierz plik"), ("photo.jpg", "⬇ Pobierz plik"),
+                                ("message-attachments.zip", "⬇ Pobierz ZIP")):
             with self.subTest(filename=filename):
                 self.api.calls.clear()
                 response = self.upload(filename)

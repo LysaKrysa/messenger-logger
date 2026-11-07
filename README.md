@@ -434,6 +434,12 @@ never captured, the view explicitly says it is unavailable.
 
 Telegram is optional and disabled by default. Create a bot with **@BotFather**,
 send `/start` to the bot, and obtain the intended destination chat ID.
+Notifications default to **Polish**. With the dashboard's shared bot, each person
+can send `/en` for English or `/pl` for Polish across their own conversation topics.
+The choice persists and leaves captured chat text, names and files unchanged.
+The standalone logger uses `TELEGRAM_LANGUAGE=pl` or `en` in its environment file.
+See [language settings and dashboard upgrade steps](docs/TELEGRAM.md#language-per-user).
+
 Edit your private `messenger.env`:
 
 ```dotenv
@@ -626,7 +632,7 @@ authentication is not a CI check.
 | Listener + native RPC | `logger.py`, `bridge_rpc.py` |
 | Storage + retention | `event_store.py`, `retention.py`, `view_messages.py` |
 | Media + identities | `media_saver.py`, `identities.py`, `contact_names.py` |
-| Telegram | `telegram_relay.py`, `telegram_format.py`, `telegram_topics.py` |
+| Telegram | `telegram_relay.py`, `telegram_format.py`, `telegram_i18n.py`, `telegram_topics.py` |
 | Read-only diagnosis | `check_telegram_topics.py`, `check-telegram-topics` |
 | Native build | `build_native.py`, `install_bridge.py`, `native/` |
 | Server operation | `server/`, `SERVER_SETUP.md` |

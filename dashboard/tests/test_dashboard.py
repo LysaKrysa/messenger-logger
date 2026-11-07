@@ -614,7 +614,7 @@ class GatewayIntegrationTests(Base):
             parsed = BytesParser(policy=default).parsebytes(("MIME-Version: 1.0\r\nContent-Type: " + options["content_type"] + "\r\n\r\n").encode() + body)
             fields = {part.get_param("name", header="content-disposition"): part.get_payload(decode=True) for part in parsed.iter_parts()}
             self.assertEqual(fields["document"], image)
-            self.assertIn(b"View-once", fields["caption"])
+            self.assertIn("Wiadomość jednorazowa".encode(), fields["caption"])
             relay.media_updated("42", "synthetic-once")
             deadline = time.monotonic() + 2
             while relay.items.unfinished_tasks and time.monotonic() < deadline:

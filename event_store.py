@@ -290,6 +290,34 @@ class EventStore:
         contact = self.db.execute("SELECT name,username FROM contacts WHERE id=?", (tid,)).fetchone()
         return self._name(tid) if contact and any(contact) else "Unnamed conversation"
 
+    def _name_kind(self, user_id):
+        row = self.db.execute("SELECT name,username FROM contacts WHERE id=?", (user_id,)).fetchone()
+        if row and (display_label(row[0]) or username_label(row[1])):
+            return None
+        return "self" if user_id == self.own_id else "unknown"
+
+    def _thread_kind(self, tid):
+        row = self.db.execute("SELECT name FROM threads WHERE id=?", (tid,)).fetchone()
+        if row and display_label(row[0]):
+            return None
+        contact = self.db.execute("SELECT name,username FROM contacts WHERE id=?", (tid,)).fetchone()
+        return None if contact and (display_label(contact[0]) or username_label(contact[1])) else "unnamed"
+
+    def _telegram_event(self, value):
+        result = {"message_id": value["message_id"], "sender": self._name(value["sender_id"]),
+                  "sender_kind": self._name_kind(value["sender_id"]),
+                  "conversation_kind": self._thread_kind(value["thread_id"])}
+        if value["type"] == "edit":
+            result["text"] = value["text"]
+        elif value["type"] == "reaction":
+            result["reaction"] = value["reaction"]
+            cached = self.db.execute("SELECT sender_id,text FROM messages WHERE thread_id=? AND message_id=? AND (?='' OR run_id=?)",
+                                     (value["thread_id"], value["message_id"], self.run_id, self.run_id)).fetchone()
+            if cached and (not self.own_id or cached[0] and cached[0] != self.own_id):
+                result.update(original=cached[1], original_sender=self._name(cached[0]),
+                              original_sender_kind=self._name_kind(cached[0]))
+        return result
+
     def _future_event(self, event):
         """Use message creation time, not the current time assigned to a replay."""
         if self.retention_seconds is not None:
@@ -521,6 +549,8 @@ class EventStore:
                 self.db.execute("UPDATE contacts SET last_seen=? WHERE id=?", (received, value["sender_id"]))
                 summary = {"type": value["type"], "thread": self._thread_name(value["thread_id"]), "body": body,
                            "thread_id": value["thread_id"], "message_id": value["message_id"], "sender_id": value["sender_id"]}
+                if value["type"] in {"edit", "reaction"}:
+                    summary["telegram"] = self._telegram_event(value)
             self._export_pending()
             if value["type"] == "message":
                 pending = self.pending_deletions.pop((value["thread_id"], value["message_id"]), None)
@@ -580,12 +610,18 @@ class EventStore:
                 if birth <= self.clock() - self.retention_seconds:
                     return None
             item["sender"] = self._name(item["sender_id"])
+            item["sender_kind"] = self._name_kind(item["sender_id"])
+            item["conversation_kind"] = self._thread_kind(thread_id)
             item["conversation"] = self._thread_name(thread_id)
             item["attachments"] = json.loads(item["attachments"])
             item["reply"] = self._safe_reply(json.loads(item.pop("reply_json")), thread_id)
             if item["reply"]:
                 item["reply"]["sender_name"] = self._name(item["reply"].get("sender_id"))
+                item["reply"]["sender_name_kind"] = self._name_kind(item["reply"].get("sender_id"))
             item["metadata"] = json.loads(item.pop("metadata_json"))
+            for person in item["metadata"].get("mentions", []):
+                person["name"] = self._name(person.get("user_id"))
+                person["name_kind"] = self._name_kind(person.get("user_id"))
             return item
 
     def contact_needed(self, user_id):

@@ -147,7 +147,12 @@ on every text, media, and topic request. Pairing does not grant dashboard access
 Regenerating an invitation revokes its predecessor. Disconnecting a pairing
 immediately revokes the worker gateway credential and requests worker shutdown.
 
-The bot supports `/help`, `/privacy`, and `/disconnect` (`/stop` is an alias).
+The bot defaults to Polish. `/en` switches only the requesting Telegram user to
+English across their topics; `/pl` switches that person back. Preferences persist
+without restarting workers. Captured text, names and files keep their original
+content. See [language settings and upgrade steps](TELEGRAM.md#language-per-user).
+
+The bot also supports `/help`, `/privacy`, and `/disconnect` (`/stop` is an alias).
 Disconnect only affects the requesting user's account. Invitation messages and
 arbitrary incoming bot messages are not added to Messenger archives.
 
