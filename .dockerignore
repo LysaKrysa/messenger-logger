@@ -8,6 +8,7 @@
 !media_saver.py
 !telegram_relay.py
 !telegram_format.py
+!telegram_i18n.py
 !telegram_topics.py
 !identities.py
 !contact_names.py
