@@ -1,12 +1,60 @@
-{% extends 'base.html' %}{% block title %}{{ account.name }} · Messenger workspace{% endblock %}{% block breadcrumb %}Account{% endblock %}{% block content %}
-<a class="back-link" href="{{ url_for('index') }}">← All accounts</a><div class="page-heading compact"><div><div class="eyebrow">ACCOUNT CONNECTION</div><h1>{{ account.name }}</h1><p class="muted">Messenger {% if account.facebook_id %}{{ account.facebook_id }}{% else %}credentials not added{% endif %}</p></div><span class="status {% if status.get('ready') and not status.get('stale') %}online{% else %}warning{% endif %}"><span class="dot"></span>{% if status.get('stale') %}Awaiting manager{% elif status.get('ready') %}Connected{% else %}{{ status.get('state','Not started')|replace('_',' ')|capitalize }}{% endif %}</span></div>
-{% if status.reason %}<div class="notice warning">{{ status.reason }}</div>{% endif %}
-{% if invite %}<div class="notice invite"><div class="eyebrow">SINGLE-USE INVITATION · EXPIRES IN 15 MINUTES</div><h3>Share this link with the account owner.</h3><p>After they press Start in Telegram, return here and approve their identity.</p><div class="copy-row"><input id="invite" value="{{ invite }}" readonly aria-label="Telegram invitation link"><button class="button secondary" data-copy="invite" type="button">Copy link</button></div><p class="field-note">This link is shown once. Creating another invitation revokes this one.</p></div>{% endif %}
-<div class="two-columns"><section class="panel"><div class="panel-top"><span class="step">01</span><h2>Messenger session</h2><span class="chip">{{ 'Saved' if account.has_cookies else 'Required' }}</span></div><p class="muted">Replace cookies when Facebook asks you to sign in again. An active worker restarts with the new session.</p><form method="post" action="{{ url_for('cookies',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="cookies">{{ 'New cookie JSON' if account.has_cookies else 'Cookie JSON' }}</label><textarea id="cookies" name="cookies" rows="6" maxlength="131072" autocomplete="off" spellcheck="false" required placeholder="Saved cookies are never displayed here."></textarea><p class="field-note">Encrypted at rest. Never paste cookies into Telegram.</p><button class="button secondary">Save cookies ↗</button></form></section>
-<section class="panel"><div class="panel-top"><span class="step">02</span><h2>Telegram destination</h2></div>{% if account.chat_id %}<div class="paired-box"><span class="dot"></span><strong>Private chat paired</strong><p>Telegram user {{ account.chat_id }}</p></div><p class="muted">Each Messenger conversation gets its own topic in this user's private bot chat.</p><form method="post" action="{{ url_for('action',ident=account.id,action='disconnect') }}" data-confirm="Disconnect Telegram and stop this account's logger?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button danger">Disconnect pairing</button></form>
-{% elif account.pending_chat %}<div class="notice warning"><strong>Confirm this is the intended person.</strong><p>{{ account.pending_name }} · Telegram ID {{ account.pending_chat }}</p></div><form method="post" action="{{ url_for('action',ident=account.id,action='approve') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button primary">Approve pairing ✓</button></form><p class="field-note">Approval links this destination; capture starts only when you press Start.</p><form method="post" action="{{ url_for('action',ident=account.id,action='disconnect') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="text-button">Reject pairing</button></form>
-{% else %}<p class="muted">Create an invitation for the owner to open in Telegram. You approve their identity before any messages are forwarded.</p><div class="setup-illustration"><span class="avatar">{{ account.name[:1]|upper }}</span><span>······</span><span class="bot-icon">↗</span></div><form method="post" action="{{ url_for('invite',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button primary" {% if not bot %}disabled{% endif %}>Create invitation ↗</button></form>{% if not bot %}<p class="field-note"><a href="{{ url_for('bot_settings') }}">Connect your bot first.</a></p>{% endif %}{% endif %}</section></div>
-<section class="panel controls"><div><h2>Capture controls</h2><p class="muted">{{ 'Requested: running' if account.desired else 'Requested: stopped' }} · Only new incoming messages are captured.</p></div><div class="button-group">{% for label,act,style in [('Start','start','primary'),('Restart','restart','secondary'),('Stop','stop','secondary')] %}<form method="post" action="{{ url_for('action',ident=account.id,action=act) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button {{ style }}" {% if act != 'stop' and (not account.has_cookies or not account.chat_id) %}disabled{% endif %}>{{ label }}</button></form>{% endfor %}</div></section>
-<section class="panel"><h2>Forwarding preferences</h2><form method="post" action="{{ url_for('action',ident=account.id,action='options') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><div class="preferences"><div><label for="mode">Send to Telegram</label><select id="mode" name="mode"><option value="deleted" {% if account.mode=='deleted' %}selected{% endif %}>Deleted messages only</option><option value="all" {% if account.mode=='all' %}selected{% endif %}>All supported incoming content</option></select></div><label class="check"><input type="checkbox" name="view_once" {% if account.view_once %}checked{% endif %}> Forward available view-once content immediately</label><button class="button secondary">Save preferences</button></div><p class="field-note">Only incoming chat content is captured locally. Messages sent by this account and quoted copies of its text are excluded. Telegram attachments, including voice recordings, have download/save controls; each deletion is sent as one message or ZIP. Media that the transport does not expose cannot be recovered. Local copies expire after 72 hours; Telegram copies remain.</p></form></section>
-<section class="panel controls"><div><h2>Remove this account</h2><p class="muted">Stops capture and removes its local archive and configuration. Telegram copies remain.</p></div><form method="post" action="{{ url_for('action',ident=account.id,action='remove') }}" data-confirm="Permanently remove this account and its local archive? Telegram copies remain."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button danger">Remove account</button></form></section>
+{% extends 'base.html' %}
+{% block title %}{{ account.name }} · Messenger workspace{% endblock %}
+{% block breadcrumb %}Account{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('index') }}">{{ icon('back') }}All accounts</a>
+<div class="page-heading compact">
+  <div><h1>{{ account.name }}</h1><p class="muted">{% if account.facebook_id %}Messenger account {{ account.facebook_id }}{% else %}Add a Messenger session to finish setup.{% endif %}</p></div>
+  <span class="status {% if status.get('ready') and not status.get('stale') %}online{% else %}warning{% endif %}"><span class="dot"></span>{% if status.get('stale') %}Awaiting manager{% elif status.get('ready') %}Connected{% else %}{{ status.get('state','Not started')|replace('_',' ')|capitalize }}{% endif %}</span>
+</div>
+{% if status.reason %}<div class="notice warning" role="status">{{ status.reason }}</div>{% endif %}
+{% if invite %}
+<div class="notice invite"><strong>Share this Telegram invitation</strong><p>Single use. Expires in 15 minutes. After the owner presses Start in Telegram, return here to approve their identity.</p><div class="copy-row"><input id="invite" value="{{ invite }}" readonly aria-label="Telegram invitation link"><button class="button secondary" data-copy="invite" type="button">Copy link</button></div><p class="field-note">This link is shown once. Creating another invitation revokes this one.</p></div>
+{% endif %}
+<section class="panel controls capture-controls" aria-labelledby="capture-heading">
+  <div><h2 id="capture-heading">Capture controls</h2><p class="muted">{{ 'Requested: running' if account.desired else 'Requested: stopped' }} · New incoming messages only.</p></div>
+  <div class="button-group">
+    {% for label,act,style in [('Start','start','primary'),('Restart','restart','secondary'),('Stop','stop','secondary')] %}
+    <form method="post" action="{{ url_for('action',ident=account.id,action=act) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button {{ style }}" {% if act != 'stop' and (not account.has_cookies or not account.chat_id) %}disabled{% endif %}>{{ label }}</button></form>
+    {% endfor %}
+  </div>
+</section>
+<div class="account-grid">
+  <div class="account-primary">
+    <section class="panel"><div class="panel-top"><h2>Forwarding preferences</h2></div>
+      <form method="post" action="{{ url_for('action',ident=account.id,action='options') }}">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label for="mode">Send to Telegram</label><select id="mode" name="mode"><option value="deleted" {% if account.mode=='deleted' %}selected{% endif %}>Deleted messages only</option><option value="all" {% if account.mode=='all' %}selected{% endif %}>All supported incoming content</option></select>
+        <label class="check"><input type="checkbox" name="view_once" {% if account.view_once %}checked{% endif %}><span>Forward available view-once content immediately</span></label>
+        <p class="field-note">Only incoming content is captured. Your outgoing messages and quoted copies of your text are excluded.</p>
+        <details class="help-details"><summary>Media and retention details</summary><p>Telegram attachments, including voice recordings, have download/save controls. Each deletion is sent as one message or ZIP. Media that the transport does not expose cannot be recovered. Local copies expire after 72 hours; Telegram copies remain.</p></details>
+        <div class="form-actions"><button class="button secondary">Save preferences</button></div>
+      </form>
+    </section>
+    <section class="panel session-panel">
+      <details {% if not account.has_cookies %}open{% endif %}>
+        <summary class="session-summary"><span><strong>Messenger session</strong><span class="muted">{{ 'Saved and encrypted. Open to replace cookies.' if account.has_cookies else 'Add cookies to connect this account.' }}</span></span><span class="chip">{{ 'Saved' if account.has_cookies else 'Required' }}</span></summary>
+        <div class="session-body"><p class="muted">Replace cookies when Facebook asks you to sign in again. An active worker restarts with the new session.</p>
+          <form method="post" action="{{ url_for('cookies',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="cookies">{{ 'New cookie JSON' if account.has_cookies else 'Cookie JSON' }}</label><textarea id="cookies" name="cookies" rows="6" maxlength="131072" autocomplete="off" spellcheck="false" required placeholder="Saved cookies are never displayed here." aria-describedby="session-note"></textarea><p class="field-note" id="session-note">Encrypted at rest. Never paste cookies into Telegram.</p><button class="button secondary">Save cookies</button></form>
+        </div>
+      </details>
+    </section>
+  </div>
+  <section class="panel telegram-panel"><div class="panel-top"><h2>Telegram destination</h2></div>
+    {% if account.chat_id %}
+    <div class="paired-box"><span class="dot"></span><strong>Private chat paired</strong><p>Telegram user {{ account.chat_id }}</p></div>
+    <p class="muted">Each Messenger conversation has its own topic in this user’s private bot chat.</p>
+    <form class="destination-action" method="post" action="{{ url_for('action',ident=account.id,action='disconnect') }}" data-confirm="Disconnect Telegram and stop this account's logger?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Disconnect pairing</button></form>
+    {% elif account.pending_chat %}
+    <div class="notice warning"><strong>Pairing needs approval</strong><p>Confirm this is the intended person: {{ account.pending_name }} · Telegram ID {{ account.pending_chat }}</p></div>
+    <form method="post" action="{{ url_for('action',ident=account.id,action='approve') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button primary">Approve pairing</button></form><p class="field-note">Capture starts when you press Start above.</p>
+    <form method="post" action="{{ url_for('action',ident=account.id,action='disconnect') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="text-button">Reject pairing</button></form>
+    {% else %}
+    <p class="muted">Invite the account owner to connect Telegram. You approve their identity before any messages are forwarded.</p>
+    <form class="destination-action" method="post" action="{{ url_for('invite',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button primary" {% if not bot %}disabled{% endif %}>Create invitation</button></form>
+    {% if not bot %}<p class="field-note"><a href="{{ url_for('bot_settings') }}">Connect your bot first.</a></p>{% endif %}
+    {% endif %}
+  </section>
+</div>
+<section class="danger-zone controls"><div><h2>Remove account</h2><p class="muted">Stops capture and deletes this account’s local archive and configuration. Telegram copies remain.</p></div><form method="post" action="{{ url_for('action',ident=account.id,action='remove') }}" data-confirm="Permanently remove this account and its local archive? Telegram copies remain."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button danger">Remove account</button></form></section>
 {% endblock %}

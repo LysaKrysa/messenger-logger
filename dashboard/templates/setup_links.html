@@ -2,13 +2,30 @@
 {% block title %}Setup invitations · Messenger workspace{% endblock %}
 {% block breadcrumb %}Setup links{% endblock %}
 {% block content %}
-<div class="page-heading"><div><span class="eyebrow">INVITE, CONNECT, APPROVE</span><h1>A simpler hello.</h1><p>Your friends connect their own accounts. You stay in control.</p></div><span class="status online">{{ active }} active {{ 'link' if active==1 else 'links' }}</span></div>
-<section class="panel"><div class="panel-top"><span class="step">↗</span><h2>Create a setup link</h2><span class="chip">ONE USE</span></div>
-<form method="post" action="{{ url_for('setup_links') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><div class="invite-create"><div><label for="label">Label <span class="optional">optional, just for you</span></label><input id="label" name="label" maxlength="80" placeholder="For a friend"></div><div><label for="hours">Expires after</label><select id="hours" name="hours"><option value="1">1 hour</option><option value="6">6 hours</option><option value="24" selected>24 hours</option></select></div><button class="button primary" {% if not bot %}disabled{% endif %}>Generate setup link ↗</button></div></form>
-<p class="field-note">One unused link reserves one account slot. Opening a preview does not use it. Once your friend presses Continue, the link belongs to their browser for up to 20 minutes. One remote Facebook browser runs at a time.</p><p class="field-note">Use a trusted HTTPS certificate for shared invitations. The default self-signed certificate shows a browser trust warning.</p>
-{% if not bot %}<p class="field-note"><a href="{{ url_for('bot_settings') }}">Connect the shared Telegram bot first.</a></p>{% endif %}
-{% if new_link %}<div class="notice invite"><strong>Your invitation is ready.</strong><p>Copy it now and send it privately. The complete link is shown only once.</p><div class="copy-row"><input id="setup-invite" readonly value="{{ new_link }}" aria-label="New setup invitation"><button class="button secondary" type="button" data-copy="setup-invite">Copy link ↗</button></div></div>{% endif %}</section>
-<div class="section-heading"><div><h2>Invitation activity</h2><p>Active links and recent history. Disable access at any time.</p></div><span class="chip">{{ links|length }} {{ 'invitation' if links|length==1 else 'invitations' }}</span></div>
-<div class="invitation-list">{% for link in links %}<article class="invitation-row"><span class="avatar">↗</span><div class="invitation-details"><strong>{{ link.label }}</strong><p>Created {{ link.created|setup_time }} · Expires {{ (link.session_expires if link.state=='claimed' else link.expires)|setup_time }}</p>{% if link.account_id %}<a href="{{ url_for('account', ident=link.account_id) }}">Open connected account ↗</a>{% endif %}</div><span class="status {{ 'online' if link.active else '' }}">{{ {'pending':'Ready to share','claimed':'Setup in progress','completed':'Setup completed','revoked':'Disabled','expired':'Expired'}.get(link.state,link.state) }}</span>{% if link.state in ['pending','claimed','completed'] %}<form method="post" action="{{ url_for('setup_disable', ident=link.id) }}" data-confirm="Disable this invitation and close its temporary browser? An already connected account will keep its own controls."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Disable link</button></form>{% endif %}</article>{% else %}<div class="empty-state"><div class="empty-icon">↗</div><h3>Your next connection starts here.</h3><p>Create an invitation above. Each friend gets a separate account and private Telegram destination.</p></div>{% endfor %}</div>
+<div class="page-heading"><div><h1>Setup links</h1><p class="muted">Invite people to connect their own Messenger and Telegram accounts.</p></div><span class="chip">{{ active }} active {{ 'link' if active==1 else 'links' }}</span></div>
+<section class="panel invite-panel" aria-labelledby="create-invite-heading">
+  <div class="panel-top"><h2 id="create-invite-heading">Create a setup link</h2><span class="chip">Single use</span></div>
+  <form method="post" action="{{ url_for('setup_links') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="invite-create"><div><label for="label">Label <span class="optional">Optional</span></label><input id="label" name="label" maxlength="80" placeholder="e.g. Alex’s invitation"></div><div><label for="hours">Expires after</label><select id="hours" name="hours"><option value="1">1 hour</option><option value="6">6 hours</option><option value="24" selected>24 hours</option></select></div><button class="button primary" {% if not bot %}disabled{% endif %}>Generate setup link</button></div>
+  </form>
+  <details class="help-details"><summary>How setup invitations work</summary><p>Each unused link reserves one account slot. A preview does not use it. Once the person presses Continue, their browser owns the link for up to 20 minutes. One remote Facebook browser runs at a time.</p><p>Use a trusted HTTPS certificate for shared invitations. The default self-signed certificate shows a browser trust warning.</p></details>
+  {% if not bot %}<p class="field-note"><a href="{{ url_for('bot_settings') }}">Connect the shared Telegram bot first.</a></p>{% endif %}
+  {% if new_link %}<div class="notice invite"><strong>Your invitation is ready</strong><p>Copy it now and send it privately. The complete link is shown only once.</p><div class="copy-row"><input id="setup-invite" readonly value="{{ new_link }}" aria-label="New setup invitation"><button class="button secondary" type="button" data-copy="setup-invite">Copy link</button></div></div>{% endif %}
+</section>
+<section aria-labelledby="invitation-heading">
+  <div class="section-heading"><div><h2 id="invitation-heading">Invitation activity <span class="count">{{ links|length }}</span></h2><p class="muted">Review recent invitations or disable access.</p></div></div>
+  <div class="invitation-list">
+    {% for link in links %}
+    <article class="invitation-row">
+      <span class="invitation-mark" aria-hidden="true">{{ icon('link') }}</span>
+      <div class="invitation-details"><h3>{{ link.label }}</h3><p>Created {{ link.created|setup_time }}<span class="invitation-expiry">Expires {{ (link.session_expires if link.state=='claimed' else link.expires)|setup_time }}</span></p>{% if link.account_id %}<a href="{{ url_for('account', ident=link.account_id) }}">Open connected account</a>{% endif %}</div>
+      <span class="status {{ 'online' if link.state == 'completed' else 'warning' if link.state == 'claimed' else '' }}">{{ {'pending':'Ready to share','claimed':'Setup in progress','completed':'Setup completed','revoked':'Disabled','expired':'Expired'}.get(link.state,link.state) }}</span>
+      {% if link.state in ['pending','claimed','completed'] %}<form method="post" action="{{ url_for('setup_disable', ident=link.id) }}" data-confirm="Disable this invitation and close its temporary browser? An already connected account will keep its own controls."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Disable link</button></form>{% endif %}
+    </article>
+    {% else %}
+    <div class="empty-state"><span class="empty-icon">{{ icon('link') }}</span><h3>No invitations yet</h3><p>Create a link above to let someone set up their own connection.</p></div>
+    {% endfor %}
+  </div>
+</section>
 <p class="field-note">After setup, approve the Telegram identity and press Start on the account page. Disabling a completed setup also invalidates its unused Telegram invitation; it does not stop an approved account.</p>
 {% endblock %}

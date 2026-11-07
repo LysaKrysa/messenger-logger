@@ -1,8 +1,35 @@
-{% extends 'base.html' %}{% block content %}
-<div class="page-heading"><div><div class="eyebrow">WORKSPACE OVERVIEW</div><h1>Every connection.<br><span class="muted">One place.</span></h1><p class="muted">Manage Messenger accounts and their private Telegram destinations.</p></div><a class="button primary" href="{{ url_for('new_account') }}">+ Add account</a></div>
-<section class="metrics" aria-label="Workspace summary"><div class="metric"><span>Accounts</span><strong>{{ accounts|length }}<small> / {{ capacity }}</small></strong><p>Separate sessions &amp; storage</p></div><div class="metric"><span>Connected now <span class="dot"></span></span><strong>{{ connected }}</strong><p>Ready to capture new events</p></div><div class="metric"><span>Server storage</span><strong>{{ host.get('disk_free')|filesize }}</strong><p>Available space for local media</p></div></section>
-<div class="section-heading"><div><h2>Your accounts</h2><p class="muted">Each account delivers to its approved Telegram user.</p></div><span class="chip">{{ accounts|length }} accounts</span></div>
-{% if accounts %}<div class="accounts-list">{% for a in accounts %}<a class="account-row" href="{{ url_for('account',ident=a.id) }}"><span class="avatar">{{ a.name[:1]|upper }}</span><div class="account-name"><strong>{{ a.name }}</strong><span>{% if a.chat_id %}Telegram paired{% elif a.pending_chat %}Pairing awaiting approval{% else %}Telegram not paired{% endif %}</span></div><span class="status {% if a.status.get('ready') and not a.status.get('stale') %}online{% elif a.status.get('state') == 'attention' or a.pending_chat %}warning{% endif %}"><span class="dot"></span>{% if a.status.get('stale') %}Awaiting manager{% elif a.status.get('ready') %}Connected{% elif a.status.get('state') == 'attention' %}Needs attention{% elif a.status.get('state') == 'running' %}Connecting{% else %}{{ a.status.get('state','Not started')|replace('_',' ')|capitalize }}{% endif %}</span><span class="row-arrow">↗</span></a>{% endfor %}</div>
-{% else %}<section class="empty-state"><div class="empty-icon">+</div><h2>Make your first connection.</h2><p>Add an account, save its cookies, then pair a Telegram user.</p><a class="button secondary" href="{{ url_for('new_account') }}">Add an account ↗</a></section>{% endif %}
-<section class="bot-strip"><div class="bot-icon">↗</div><div><h3>{% if bot %}@{{ bot.username }}{% else %}Connect your shared Telegram bot{% endif %}</h3><p>{{ bot_status if bot else 'One bot. A private destination for each person.' }}</p></div><a class="button secondary" href="{{ url_for('bot_settings') }}">Bot settings ↗</a></section>
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-heading">
+  <div><h1>Overview</h1><p class="muted">Manage your accounts and their private Telegram destinations.</p></div>
+  <a class="button primary" href="{{ url_for('new_account') }}">{{ icon('plus') }}Add account</a>
+</div>
+<dl class="metrics" aria-label="Workspace summary">
+  <div class="metric"><dt>Accounts</dt><dd>{{ accounts|length }}<small> / {{ capacity }}</small></dd><dd class="metric-note">Separate sessions and storage</dd></div>
+  <div class="metric"><dt>Connected now</dt><dd>{{ connected }}</dd><dd class="metric-note">Ready for new incoming messages</dd></div>
+  <div class="metric"><dt>Available storage</dt><dd>{{ host.get('disk_free')|filesize }}</dd><dd class="metric-note">Server space for local media</dd></div>
+</dl>
+<section aria-labelledby="accounts-heading">
+  <div class="section-heading"><div><h2 id="accounts-heading">Accounts <span class="count">{{ accounts|length }}</span></h2><p class="muted">Open an account to manage its connection and forwarding.</p></div></div>
+  {% if accounts %}
+  <div class="accounts-list">
+    <div class="account-table-heading" aria-hidden="true"><span>Account</span><span>Connection status</span></div>
+    {% for a in accounts %}
+    <a class="account-row" href="{{ url_for('account',ident=a.id) }}">
+      <span class="avatar" aria-hidden="true">{{ a.name[:1]|upper }}</span>
+      <span class="account-name"><strong>{{ a.name }}</strong><span>{% if a.chat_id %}Telegram paired{% elif a.pending_chat %}Pairing awaiting approval{% else %}Telegram not paired{% endif %}</span></span>
+      <span class="status {% if a.status.get('ready') and not a.status.get('stale') %}online{% elif a.status.get('state') == 'attention' or a.pending_chat %}warning{% endif %}"><span class="dot"></span>{% if a.status.get('stale') %}Awaiting manager{% elif a.status.get('ready') %}Connected{% elif a.status.get('state') == 'attention' %}Needs attention{% elif a.status.get('state') == 'running' %}Connecting{% else %}{{ a.status.get('state','Not started')|replace('_',' ')|capitalize }}{% endif %}</span>
+      {{ icon('chevron','row-arrow') }}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><span class="empty-icon">{{ icon('grid') }}</span><h3>No accounts yet</h3><p>Add an account to start capturing incoming messages.</p><a class="button secondary" href="{{ url_for('new_account') }}">Add an account</a></div>
+  {% endif %}
+</section>
+<section class="bot-strip" aria-labelledby="shared-bot-heading">
+  <span class="bot-icon" aria-hidden="true">{{ icon('send') }}</span>
+  <div><h2 id="shared-bot-heading">{% if bot %}@{{ bot.username }}{% else %}Set up your shared Telegram bot{% endif %}</h2><p>{{ bot_status if bot else 'Connect one bot to deliver to each account’s approved private chat.' }}</p></div>
+  <a class="button secondary" href="{{ url_for('bot_settings') }}">Bot settings</a>
+</section>
 {% endblock %}
