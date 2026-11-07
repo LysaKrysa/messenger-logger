@@ -1,5 +1,17 @@
 # Validation
 
+## Telegram download buttons
+
+- Multipart gateway checks keep exact voice/file/ZIP bytes and captions while
+  adding one controlled inline keyboard and forcing document delivery.
+- Callback regressions verify private recipient ownership, approved/revoked
+  pairings, bot authorship, topic/reply preservation, paused capture, malformed
+  documents, URLs/paths, throttling and durable duplicate-update handling.
+- Simulated uncertain sends are not automatically replayed after a receiver
+  restart. Workers cannot inject keyboards or call callback/file APIs.
+- The existing single receiver polls both messages and callbacks. All API calls
+  in tests use synthetic data and fake Telegram responses; no real send occurs.
+
 ## Server usage and free-tier budgets
 
 - Synthetic Linux counters verify CPU guest-tick handling, memory availability,

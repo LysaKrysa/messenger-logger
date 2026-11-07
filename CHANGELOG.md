@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Telegram attachment download buttons
+
+- Add gateway-owned Download file/ZIP buttons to new shared-bot document
+  notifications, including voice recordings; preserve the single original notice.
+- Handle owner-checked download requests in the existing receiver and reuse the
+  Telegram document ID to send one requested copy in the same private topic.
+- Keep tokens/URLs/local archives out of button data, preserve the worker method
+  allowlist, and limit repeated taps without replaying ambiguous sends.
+
 ## Unreleased — server usage and free-tier budgets
 
 - Add an administrator Usage tab with CPU, memory, swap, disk, network rates
