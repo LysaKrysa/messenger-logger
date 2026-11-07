@@ -59,6 +59,7 @@
     document.addEventListener("input", () => { dirty = true; });
     setInterval(() => {
       if (!dirty && !document.hidden && !document.body.classList.contains("nav-open") &&
+          !document.querySelector("details[open]") &&
           !document.activeElement?.matches("input,textarea,select")) window.location.reload();
     }, 15000);
   }

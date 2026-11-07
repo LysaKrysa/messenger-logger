@@ -3,6 +3,17 @@ from playwright.sync_api import expect
 
 
 def verify(browser, admin, origin, account_url, output):
+    # Status refresh must not collapse a credential form the administrator
+    # deliberately expanded. Wait through the real 15-second refresh interval.
+    admin.goto(account_url)
+    admin.bring_to_front()
+    session = admin.locator(".session-panel details")
+    session.locator("summary").click()
+    document_started = admin.evaluate("performance.timeOrigin")
+    admin.wait_for_timeout(15500)
+    assert admin.evaluate("performance.timeOrigin") == document_started, "Expanded details caused a refresh"
+    expect(session).to_have_attribute("open", "")
+
     # Exercise a real pending row, including its destructive control, at every
     # width. Revoke this reservation before the subsequent onboarding fixtures.
     admin.goto(origin + "/setup-links")
