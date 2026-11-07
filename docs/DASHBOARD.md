@@ -153,6 +153,10 @@ without restarting workers. Captured text, names and files keep their original
 content. See [language settings and upgrade steps](TELEGRAM.md#language-per-user).
 
 The bot also supports `/help`, `/privacy`, and `/disconnect` (`/stop` is an alias).
+Owner-only `/status`, `/settings`, `/pause`, `/resume`, `/mode`, `/media` and
+`/quiet` controls have Polish equivalents and localized replies. A welcome notice
+points to `/help` on first contact. See [the command reference](TELEGRAM.md#private-bot-commands)
+for examples, quiet-mode behavior and status freshness.
 Disconnect only affects the requesting user's account. Invitation messages and
 arbitrary incoming bot messages are not added to Messenger archives.
 

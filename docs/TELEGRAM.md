@@ -2,6 +2,51 @@
 
 [← README](../README.md#telegram-forwarding) · [Troubleshooting](TROUBLESHOOTING.md)
 
+## Private bot commands
+
+The first reply to a new user starts with a localized welcome notice pointing to
+`/help` and `/pomoc`, including invitation-link starts. `/start` shows welcome
+and help again. No unsolicited welcome is sent before the user contacts the bot.
+
+| English | Polish alias | Effect on your linked account |
+| --- | --- | --- |
+| `/status` | `/stan` | Messenger connection, capture state, last captured event and Telegram delivery health. |
+| `/pause` | `/pauza` | Request capture shutdown and keep your pairing. |
+| `/resume` | `/wznow` | Reconnect and capture new events from the new worker's startup; missed history is not imported. |
+| `/mode deleted` | `/tryb usuniete` | Forward deleted messages. |
+| `/mode all` | `/tryb wszystkie` | Forward all supported incoming chat events. |
+| `/media on` / `/media off` | `/media wlacz` / `/media wylacz` | Enable or disable new and queued attachment downloads and automatic file uploads. |
+| `/quiet 1h` | `/cisza 1g` | Keep local capture running and skip Telegram notifications for one hour. |
+| `/quiet off` | `/cisza wylacz` | End quiet mode early. |
+| `/settings` | `/ustawienia` | Your language, capture state, forwarding mode, downloads and quiet-until time. |
+| `/help` | `/pomoc` | All commands and examples in your chosen language. |
+| `/privacy` | `/prywatnosc` | Privacy and retention information. |
+| `/disconnect` | `/odlacz` | Remove pairing and stop capture; `/stop` is the same unlink action. |
+
+Both command languages work regardless of the reply language selected with
+`/en` or `/pl`. Accented forms such as `/wznów`, `/odłącz`, `usunięte`, `włącz`
+and `wyłącz` also work when typed. Use commands in the bot's private chat or any
+of its private conversation topics. Group commands and attempts to select another
+user are rejected. Pending or unpaired users cannot start a worker or bypass
+administrator approval.
+
+Mode, media and quiet changes persist and require no Messenger reconnect.
+Control reads can be cached for up to one second; quiet mode also has a final
+gateway check. Quiet durations are positive whole minutes or hours up to 24h
+(for example `5m`, `1h` or `1g`). Notifications skipped during quiet mode are not
+replayed when it ends, including delayed media callbacks. Commands and explicit
+Download-button requests remain available. An already in-flight send/download
+may finish. Turning downloads off preserves saved files and attachment metadata;
+turning them back on admits future downloads without scanning history.
+The administrator's separate view-once-alert option remains in effect.
+
+Status uses metadata-only worker reports, normally refreshed every five seconds
+after connection. Reports older than 90 seconds or belonging to an earlier
+worker revision are shown as unknown. Delivery health is the last observed
+automatic relay result: confirmed sent, rejected, unconfirmed, or no result.
+A command reply is not used as proof that message forwarding is healthy. These
+reports contain no chat text, credentials, message IDs, media URLs or archives.
+
 ## Language per user
 
 The shared bot defaults to **Polish**. Each person can choose their own language
@@ -37,9 +82,9 @@ dashboard installation:
 
 ```bash
 sudo install --backup=numbered -m 644 \
-  event_store.py telegram_relay.py telegram_format.py telegram_i18n.py telegram_topics.py \
+  event_store.py logger.py media_saver.py telegram_relay.py telegram_format.py telegram_i18n.py telegram_topics.py \
   /opt/messenger-dashboard/app/
-sudo install --backup=numbered -m 644 dashboard/broker.py dashboard/store.py dashboard/cli.py \
+sudo install --backup=numbered -m 644 dashboard/*.py \
   /opt/messenger-dashboard/app/dashboard/
 sudo systemctl restart messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
 sudo messenger-dashboard-admin restart-active

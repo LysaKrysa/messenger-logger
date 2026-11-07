@@ -120,7 +120,7 @@ def message_card(item, zone, language="pl"):
         result.add("\n\n").add("📎 " + attachment_count(len(attachments), language), "bold")
         for media in attachments:
             status = media.get("downloadStatus")
-            status = tr(language, status if status in {"saved", "pending", "failed", "interrupted"} else "metadata_only")
+            status = tr(language, status if status in {"saved", "pending", "failed", "interrupted", "disabled"} else "metadata_only")
             parts = [media_label(media, language)]
             if media.get("viewOnce"):
                 mode = media.get("viewMode")

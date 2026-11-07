@@ -547,7 +547,7 @@ class EventStore:
                     )
                 self.db.execute("UPDATE threads SET last_seen=? WHERE id=?", (received, value["thread_id"]))
                 self.db.execute("UPDATE contacts SET last_seen=? WHERE id=?", (received, value["sender_id"]))
-                summary = {"type": value["type"], "thread": self._thread_name(value["thread_id"]), "body": body,
+                summary = {"type": value["type"], "thread": self._thread_name(value["thread_id"]), "body": body, "received_at": received,
                            "thread_id": value["thread_id"], "message_id": value["message_id"], "sender_id": value["sender_id"]}
                 if value["type"] in {"edit", "reaction"}:
                     summary["telegram"] = self._telegram_event(value)
@@ -640,7 +640,7 @@ class EventStore:
             return cursor.rowcount == 1
 
     def finish_telegram(self, thread_id, message_id, part, status):
-        if status not in {"sent", "failed"}:
+        if status not in {"sent", "failed", "skipped"}:
             raise StoreFailure("Invalid Telegram attempt state.")
         with self.lock, self.db:
             self.db.execute("UPDATE telegram_attempts SET status=? WHERE run_id=? AND thread_id=? AND message_id=? AND part=?",

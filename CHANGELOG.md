@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — bilingual private bot controls
+
+- Add owner-scoped status/settings, pause/resume, forwarding mode, media-download
+  and timed quiet commands with Polish aliases, localized help and a first-reply
+  welcome notice. Preserve approval, private-chat and sender checks.
+- Apply mode/media/quiet settings without reconnecting Messenger. Skip quiet
+  notifications durably, including delayed media and gateway timing races;
+  preserve local capture, pairing and receive-only operation.
+- Report revision-bound worker health and metadata-only last capture/delivery
+  results; label stale/unknown state rather than inferring delivery from replies.
+- Preserve settings across restarts and clear old account control/health records
+  when approving a new recipient or removing an account.
+
 ## Unreleased — per-user Telegram languages
 
 - Default generated Telegram notifications, replies, download buttons, file

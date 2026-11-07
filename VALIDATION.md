@@ -1,5 +1,23 @@
 # Validation
 
+## Bilingual private bot controls
+
+- Command flows cover first-contact and invitation welcomes, both help languages,
+  Polish aliases/arguments, per-user persistent settings, idempotent pause/resume,
+  and rejection of group, mismatched-sender, other-bot, malformed, unpaired and
+  pending-approval requests. Duplicate/uncertain updates are not replayed.
+- Real Flask gateway integration checks live mode/media changes without worker
+  revision changes, continued local quiet captures, delayed media suppression,
+  early quiet cancellation/expiry and a quiet change between settings and send.
+- Media-worker tests cancel queued/new downloads without a bridge call, then
+  verify exact future file bytes after enabling downloads again.
+- Worker reports have strict fields, bounded timestamps and revision checks;
+  stale connections become unknown. Delivery outcomes reflect actual relay API
+  results and retain last confirmed send across an uncertain outcome.
+- New approved recipients cannot inherit a previous recipient's control or
+  health metadata. Tests use synthetic users/files and fake Telegram responses;
+  no real Facebook login or Telegram send occurs.
+
 ## Per-user Telegram languages
 
 - Two live relay instances through the real Flask gateway follow only their

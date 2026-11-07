@@ -29,12 +29,16 @@ from telegram_i18n import tr, LANGUAGES
 # Cloud Bot API multipart uploads: https://core.telegram.org/bots/api#sending-files
 MAX_UPLOAD_BYTES = 50_000_000
 ERROR_RESPONSE_BYTES = 8192
-API_METHODS = frozenset({"getLocale", "getMe", "getChat", "getChatMember", "createForumTopic",
+API_METHODS = frozenset({"getLocale", "getControls", "reportStatus", "getMe", "getChat", "getChatMember", "createForumTopic",
                          "editForumTopic", "sendMessage", "sendDocument"})
 
 
 class TelegramConfigurationError(ValueError):
     pass
+
+
+class NotificationSuppressed(Exception):
+    """The gateway skipped delivery deliberately before contacting Telegram."""
 
 
 class AttachmentUnavailable(ValueError):
@@ -133,6 +137,12 @@ class TelegramRelay:
         self.thread = None
         self.next_send = 0.0
         self.interval = 1.05
+        self.control_lock = threading.Lock()
+        self.next_controls = 0
+        self.downloads = True
+        self.quiet_until = 0
+        self.quiet_windows = []
+        self.mode_since = 0
         if self.enabled:
             self.token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
             self.chat = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -162,15 +172,21 @@ class TelegramRelay:
                 self.thread = threading.Thread(target=self._work, name="telegram-relay", daemon=True)
                 self.thread.start()
 
-    def _queue_deleted(self, tid, mid):
+    def _queue_deleted(self, tid, mid, observed=None):
         key = (tid, mid)
         if not mid or self.stopping.is_set():
+            return
+        observed = time.time() if observed is None else observed
+        if self._muted(observed):
+            snapshot = self.store.relay_snapshot(tid, mid)
+            if snapshot and self._eligible(snapshot):
+                self._skip(tid, mid, snapshot)
             return
         with self.lock:
             if key in self.queued:
                 return
             try:
-                self.items.put_nowait(("deleted", key))
+                self.items.put_nowait(("deleted", (tid, mid, observed)))
             except queue.Full:
                 self.report("Telegram queue full; one notification was skipped. Local logging continues.")
             else:
@@ -179,9 +195,10 @@ class TelegramRelay:
     def submit(self, summary):
         if not self.enabled or self.stopping.is_set():
             return
+        self.refresh_controls()
         kind = summary["type"]
         if kind == "unsend":
-            self._queue_deleted(summary["thread_id"], summary["message_id"])
+            self._queue_deleted(summary["thread_id"], summary["message_id"], summary.get("received_at"))
         else:
             if kind == "message":
                 # A delayed capture may fill an earlier deletion tombstone.
@@ -195,6 +212,7 @@ class TelegramRelay:
     def media_updated(self, tid, mid):
         if not self.enabled or self.stopping.is_set():
             return
+        self.refresh_controls()
         snapshot = self.store.relay_snapshot(tid, mid)
         if snapshot and self._eligible(snapshot):
             self._queue_deleted(tid, mid)
@@ -203,10 +221,60 @@ class TelegramRelay:
         if snapshot["deleted"]:
             return snapshot["deleted_run_id"] == self.store.run_id
         once = self.view_once and any(item.get("viewOnce") for item in snapshot["attachments"])
-        return snapshot["run_id"] == self.store.run_id and (once or self.mode == "all")
+        return snapshot["run_id"] == self.store.run_id and (once or self.mode == "all" and snapshot["captured_at"] >= self.mode_since)
+
+    def refresh_controls(self, *, force=False):
+        if not self.enabled or not getattr(self, "gateway", ""):
+            return
+        with self.control_lock:
+            if not force and time.monotonic() < self.next_controls:
+                return
+            self.next_controls = time.monotonic() + 1
+            try:
+                value = self._api("getControls", {})
+                if not isinstance(value, dict):
+                    return
+                if isinstance(value.get("language"), str) and value["language"] in LANGUAGES:
+                    self.language = value["language"]
+                if isinstance(value.get("mode"), str) and value["mode"] in {"deleted", "all"}:
+                    self.mode = value["mode"]
+                if type(value.get("media")) is bool:
+                    self.downloads = self.send_media = value["media"]
+                for key in ("quiet_until", "mode_since"):
+                    candidate = value.get(key)
+                    if type(candidate) in {int, float} and 0 <= candidate < 2**53:
+                        setattr(self, key, candidate)
+                windows = value.get("quiet_windows")
+                if isinstance(windows, list) and len(windows) <= 512 and all(isinstance(w, list) and len(w) == 2 and all(type(t) in {int, float} and 0 <= t < 2**53 for t in w) and w[0] <= w[1] for w in windows):
+                    self.quiet_windows = windows
+            except (TelegramAPIRejected, TelegramRequestError):
+                pass
+
+    def download_media(self):
+        self.refresh_controls()
+        return self.downloads
+
+    def report_status(self, connected, last_event):
+        if not self.enabled or not getattr(self, "gateway", ""):
+            return
+        try:
+            self._api("reportStatus", {"revision": int(os.environ.get("LOGGER_ACCOUNT_REVISION", "0")),
+                                       "connected": connected, "last_event": last_event})
+        except (ValueError, TelegramAPIRejected, TelegramRequestError):
+            pass
+
+    def _muted(self, observed=None):
+        now = time.time()
+        return self.quiet_until > now or observed is not None and any(start <= observed < end for start, end in self.quiet_windows)
+
+    def _skip(self, tid, mid, snapshot):
+        part = "notice:" + ("deleted" if snapshot["deleted"] else "message")
+        if self.store.claim_telegram(tid, mid, part):
+            self.store.finish_telegram(tid, mid, part, "skipped")
 
     def _post(self, method, body, content_type="application/json", *, length=None):
-        if method != "getLocale":
+        internal = method in {"getLocale", "getControls", "reportStatus"}
+        if not internal:
             if self.stopping.wait(max(0.0, self.next_send - time.monotonic())):
                 raise InterruptedError
             self.next_send = time.monotonic() + self.interval
@@ -219,7 +287,7 @@ class TelegramRelay:
         request = Request(url,
                           data=body, headers=headers, method="POST")
         try:
-            with urlopen(request, timeout=3 if method == "getLocale" else 30) as response:
+            with urlopen(request, timeout=3 if internal else 30) as response:
                 raw = response.read(1024 * 1024 + 1)
         except HTTPError as exc:
             # Inspect a bounded error body privately, then discard it. Never log
@@ -256,20 +324,16 @@ class TelegramRelay:
                 raise TelegramAPIRejected(method, code, payload)
             reason = "server_error" if type(code) is int and 500 <= code <= 599 else "invalid_response"
             raise TelegramRequestError(method, reason, code)
-        return payload.get("result")
+        result = payload.get("result")
+        if isinstance(result, dict) and result.get("_logger_suppressed") is True:
+            raise NotificationSuppressed
+        return result
 
     def _api(self, method, parameters):
         return self._post(method, json.dumps(parameters).encode())
 
     def _language(self):
-        if getattr(self, "gateway", ""):
-            try:
-                preferences = self._api("getLocale", {})
-                candidate = preferences.get("language") if isinstance(preferences, dict) else None
-                if isinstance(candidate, str) and candidate in LANGUAGES:
-                    self.language = candidate
-            except (TelegramAPIRejected, TelegramRequestError):
-                pass  # Keep this worker's last language if the local lookup fails.
+        self.refresh_controls(force=True)
         if self.topics is not None:
             self.topics.language = self.language
         return self.language
@@ -325,6 +389,8 @@ class TelegramRelay:
             return
         try:
             action()
+        except NotificationSuppressed:
+            self.store.finish_telegram(tid, mid, part, "skipped")
         except Exception as exc:
             self.store.finish_telegram(tid, mid, part, "failed")
             self._report_failure(exc)
@@ -434,9 +500,13 @@ class TelegramRelay:
         except AttachmentUnavailable as exc:
             self._transcript(notice, card.add("\n\n" + tr(language, exc.key), "italic"), route, language)
 
-    def _deleted(self, tid, mid):
+    def _deleted(self, tid, mid, observed=None):
+        language = self._language()
         snapshot = self.store.relay_snapshot(tid, mid)
         if not snapshot or not self._eligible(snapshot):
+            return
+        if self._muted(observed):
+            self._skip(tid, mid, snapshot)
             return
         if self.send_media and any(media.get("downloadStatus") == "pending" for media in snapshot["attachments"]):
             return  # MediaSaver queues us again after every terminal download result.
@@ -445,7 +515,6 @@ class TelegramRelay:
             snapshot = self.store.relay_snapshot(tid, mid)
             if not snapshot or not self._eligible(snapshot):
                 return
-        language = self._language()
         route = self._route(tid, "" if snapshot.get("conversation_kind") else snapshot["conversation"])
         notice = dict(snapshot)
         notice["attachments"] = [{key: value for key, value in item.items() if key not in {"url", "previewUrl", "localPath"}}
@@ -461,11 +530,14 @@ class TelegramRelay:
                 continue
             if kind == "deleted":
                 with self.lock:
-                    self.queued.discard(item)
+                    self.queued.discard(item[:2])
             try:
                 if kind == "deleted":
                     self._deleted(*item)
                 else:
+                    self.refresh_controls(force=True)
+                    if self.mode != "all" or self._muted(item.get("received_at")) or item.get("received_at", time.time()) < self.mode_since:
+                        continue
                     plain = html.unescape(re.sub(r"<[^>]+>", "", item["body"]))
                     language = self._language()
                     event = item.get("telegram")
@@ -473,6 +545,8 @@ class TelegramRelay:
                     self._text(event_card(item["thread"], plain, item["type"], language, event=event), route=route)
             except TopicError as exc:
                 self.report("Telegram topics: " + str(exc) + " Local content remains saved.")
+            except NotificationSuppressed:
+                pass
             except Exception as exc:
                 self._report_failure(exc)
             finally:

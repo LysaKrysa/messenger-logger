@@ -87,7 +87,7 @@ def safe_filename(attachment, data):
 
 class MediaSaver:
     """One bounded worker; keys exist only in queued jobs, never in the database."""
-    def __init__(self, bridge, store, report, stop, *, max_bytes=None, queue_size=64, on_update=None):
+    def __init__(self, bridge, store, report, stop, *, max_bytes=None, queue_size=64, on_update=None, allow_download=None):
         self.bridge, self.store, self.report, self.stop = bridge, store, report, stop
         self.max_bytes = media_limit() if max_bytes is None else max_bytes
         if not 1 <= self.max_bytes <= NATIVE_MAX_BYTES:
@@ -98,6 +98,7 @@ class MediaSaver:
         self.saved = 0
         self.thread = None
         self.on_update = on_update
+        self.allow_download = allow_download or (lambda: True)
 
     def start(self):
         if self.thread is None:
@@ -117,6 +118,9 @@ class MediaSaver:
                 continue
             attachment = {key: value for key, value in item.items() if key in TRANSIENT_FIELDS and isinstance(value, (str, int))}
             job = (summary["thread_id"], summary["message_id"], index, encrypted, attachment)
+            if not self.allow_download():
+                self._finish(job, {"downloadStatus": "disabled"})
+                continue
             if self.stopping.is_set() or self.stop.is_set():
                 self._finish(job, {"downloadStatus": "interrupted"})
                 continue
@@ -207,6 +211,8 @@ class MediaSaver:
                 try:
                     if self.stopping.is_set() or self.stop.is_set():
                         self._finish(job, {"downloadStatus": "interrupted"})
+                    elif not self.allow_download():
+                        self._finish(job, {"downloadStatus": "disabled"})
                     else:
                         try:
                             self._save(job)
