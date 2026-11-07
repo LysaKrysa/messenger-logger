@@ -60,7 +60,7 @@ class TelegramTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.store = EventStore(self.root, own_id="12345", started_at=1000, run_id="telegram-run")
         self.store.accept({"type": "metadata", "data": {"contacts": [{"id": 222, "name": "Alex", "username": "alex.user"}], "threads": [{"id": 42, "name": "Conversation"}]}})
-        self.env = patch.dict(os.environ, {"TELEGRAM_ENABLED": "true", "TELEGRAM_MODE": "deleted", "TELEGRAM_SEND_MEDIA": "true", "TELEGRAM_VIEW_ONCE": "false", "TELEGRAM_TOPICS": "false", "TELEGRAM_BOT_TOKEN": TOKEN, "TELEGRAM_CHAT_ID": "123456"})
+        self.env = patch.dict(os.environ, {"TELEGRAM_ENABLED": "true", "TELEGRAM_LANGUAGE": "en", "TELEGRAM_MODE": "deleted", "TELEGRAM_SEND_MEDIA": "true", "TELEGRAM_VIEW_ONCE": "false", "TELEGRAM_TOPICS": "false", "TELEGRAM_BOT_TOKEN": TOKEN, "TELEGRAM_CHAT_ID": "123456"})
         self.env.start()
         self.calls, self.reports = [], []
         self.network_error = None

@@ -225,7 +225,7 @@ class Response:
 
 class TopicDiagnosticTests(unittest.TestCase):
     def setUp(self):
-        self.env = patch.dict(os.environ, {"TELEGRAM_ENABLED": "true", "TELEGRAM_TOPICS": "true", "TELEGRAM_MODE": "deleted", "TELEGRAM_CHAT_ID": "7654321", "TELEGRAM_BOT_TOKEN": TOKEN}, clear=True)
+        self.env = patch.dict(os.environ, {"TELEGRAM_ENABLED": "true", "TELEGRAM_LANGUAGE": "en", "TELEGRAM_TOPICS": "true", "TELEGRAM_MODE": "deleted", "TELEGRAM_CHAT_ID": "7654321", "TELEGRAM_BOT_TOKEN": TOKEN}, clear=True)
         self.env.start()
         self.api = API()
         self.output = io.StringIO()
@@ -293,7 +293,7 @@ class TopicRelayTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.store = EventStore(self.root, started_at=1000, run_id="relay-topics")
         self.store.accept({"type": "metadata", "data": {"threads": [{"id": 42, "name": "Friends"}, {"id": 43, "name": "Work"}]}})
-        self.env = patch.dict(os.environ, {"TELEGRAM_ENABLED": "true", "TELEGRAM_TOPICS": "true", "TELEGRAM_MODE": "all", "TELEGRAM_VIEW_ONCE": "true", "TELEGRAM_SEND_MEDIA": "true", "TELEGRAM_CHAT_ID": "7654321", "TELEGRAM_BOT_TOKEN": TOKEN})
+        self.env = patch.dict(os.environ, {"TELEGRAM_ENABLED": "true", "TELEGRAM_LANGUAGE": "en", "TELEGRAM_TOPICS": "true", "TELEGRAM_MODE": "all", "TELEGRAM_VIEW_ONCE": "true", "TELEGRAM_SEND_MEDIA": "true", "TELEGRAM_CHAT_ID": "7654321", "TELEGRAM_BOT_TOKEN": TOKEN})
         self.env.start()
         self.api = API()
         self.calls, self.reports = [], []
@@ -440,7 +440,7 @@ class TopicRelayTests(unittest.TestCase):
         event = message()
         event["data"]["text"] = "🙂 long literal text " * 600
         self.store.accept(event)
-        card = message_card(self.store.relay_snapshot("42", "m1"), self.relay.zone)
+        card = message_card(self.store.relay_snapshot("42", "m1"), self.relay.zone, "en")
         self.relay._text(card, route=self.relay._route("42", "Friends"))
         expected = card.text
         self.assertEqual("".join(item["text"] for item in accepted), expected)

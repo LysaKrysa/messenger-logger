@@ -17,6 +17,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from logger import parse_cookies, ConfigurationError
+from telegram_i18n import language as normalize_language
 
 ID = re.compile(r"[a-f0-9]{32}\Z")
 BOT_TOKEN = re.compile(r"[0-9]+:[A-Za-z0-9_-]{20,}\Z")
@@ -114,6 +115,21 @@ class Store:
     def set_setting(self, key, value):
         with self.db() as db:
             db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, json.dumps(value)))
+
+    def telegram_language(self, user_id):
+        if type(user_id) is not int or not 0 < user_id < 2**53:
+            return "pl"
+        return normalize_language(self.setting("telegram_language:" + str(user_id), "pl"))
+
+    def set_telegram_language(self, user_id, language):
+        if type(user_id) is not int or not 0 < user_id < 2**53 or not isinstance(language, str) or language not in {"pl", "en"}:
+            raise DashboardError("Invalid Telegram language preference.")
+        self.set_setting("telegram_language:" + str(user_id), language)
+
+    def restart_active(self):
+        with self.db() as db:
+            cursor = db.execute("UPDATE accounts SET revision=revision+1 WHERE desired=1 AND cookies IS NOT NULL AND chat_id IS NOT NULL")
+            return cursor.rowcount
 
     def set_password(self, password):
         if not isinstance(password, str) or not 14 <= len(password) <= 128:

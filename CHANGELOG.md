@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — per-user Telegram languages
+
+- Default generated Telegram notifications, replies, download buttons, file
+  captions and transcript labels to Polish; preserve captured content and media.
+- Add persistent `/en` and `/pl` preferences scoped to the verified Telegram
+  sender, applying across their topics without restarting their worker.
+- Expose only the authenticated worker's read-only preference through the local
+  gateway. Keep delivery ownership, single-notice downloads and ambiguous-send
+  protection in place. Support `TELEGRAM_LANGUAGE` for standalone deployments.
+- Include the translation catalog in containers/installations and add
+  `messenger-dashboard-admin restart-active` for the one-time worker upgrade.
+
 ## Unreleased — Telegram attachment download buttons
 
 - Add gateway-owned Download file/ZIP buttons to new shared-bot document

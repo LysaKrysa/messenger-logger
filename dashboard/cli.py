@@ -85,6 +85,7 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init")
     sub.add_parser("password")
+    sub.add_parser("restart-active")
     imported = sub.add_parser("import-existing")
     imported.add_argument("--env-file", required=True)
     imported.add_argument("--data-dir", required=True)
@@ -108,7 +109,10 @@ def main():
         with os.fdopen(fd, "wb") as handle:
             handle.write(Fernet.generate_key())
     store = from_environment()
-    if args.command in {"init", "password"}:
+    if args.command == "restart-active":
+        count = store.restart_active()
+        print(str(count) + " active account(s) scheduled for restart. Stopped accounts are preserved.")
+    elif args.command in {"init", "password"}:
         if args.command == "init" and store.setting("password"):
             print("Existing dashboard credentials preserved.")
             return
