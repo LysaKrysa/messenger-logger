@@ -174,6 +174,63 @@ def verify(browser, admin, origin, store, offline, output):
     other.locator("#setup-error").wait_for(state="visible")
     assert "disabled" in other.locator("#setup-error").inner_text()
     assert not offline.sessions
+    # Reconnect the existing account in the real HTTPS guest UI. The private
+    # browser cannot open until the paired Telegram owner confirms the claim.
+    from dashboard.setup_store import SetupInvites
+    from dashboard.broker import PairingReceiver
+    from dashboard.tests.test_dashboard import FakeAPI
+    record = store.account(account["id"], private=True)
+    store.report_worker(record, {"revision": record["revision"], "connected": False, "last_event": None})
+    store.set_setting("connection_monitor:" + record["id"], {
+        "eligible": True, "epoch": record["auth_epoch"], "revision": record["revision"],
+        "owner": record["chat_id"], "facebook_id": record["facebook_id"], "updated": store.clock(),
+    })
+    invites = SetupInvites(store)
+    reconnect_id, reconnect_token = invites.create_reconnect(record["chat_id"])
+    count = len(store.accounts())
+    refresh_context = browser.new_context(ignore_https_errors=True, has_touch=True, viewport={"width": 390, "height": 844})
+    refresh_context.route("**/*", lambda route: route.continue_() if route.request.url.startswith(origin + "/") else route.abort())
+    refresh = refresh_context.new_page()
+    refresh.on("pageerror", lambda error: errors.append(str(error)))
+    refresh.goto(origin + "/reconnect#" + reconnect_token)
+    assert refresh.locator("#guest-name").is_hidden()
+    refresh.locator("#guest-consent").check()
+    refresh.get_by_role("button", name="Continue", exact=True).click()
+    refresh.locator("#reconnect-confirm").wait_for(state="visible")
+    assert refresh.locator("#facebook").is_hidden()
+    progress = refresh.request.get(origin + "/setup/api/status").json()
+    forbidden = refresh.request.post(origin + "/setup/api/start", data={}, headers={"Origin": origin, "X-Setup-CSRF": progress["csrf"]})
+    assert forbidden.status == 400
+    assert reconnect_id not in offline.sessions
+    refresh.screenshot(path=str(output / "reconnect-confirm-mobile.png"), full_page=True)
+    api = FakeAPI()
+    receiver = PairingReceiver(store, api, origin=origin)
+    receiver.connection_alerts.confirmations()
+    import json
+    prompt = json.loads(api.calls[-1][1])
+    callback = prompt["reply_markup"]["inline_keyboard"][0][0]["callback_data"]
+    receiver.handle({"update_id": store.setting("bot_offset", -1) + 1, "callback_query": {
+        "id": "SYNTHETIC_RECONNECT_CONFIRM", "data": callback,
+        "from": {"id": record["chat_id"], "is_bot": False},
+        "message": {"message_id": 123, "chat": {"id": record["chat_id"], "type": "private"},
+                    "from": {"id": store.bot()["id"], "is_bot": True}},
+    }})
+    refresh.locator("#facebook").wait_for(state="visible")
+    assert refresh.locator("#reconnect-confirm").is_hidden()
+    refresh.get_by_role("button", name="Open Facebook", exact=False).click()
+    refresh.locator("#remote-screen").wait_for(state="visible")
+    refresh.locator("#approve-session").check()
+    refresh.locator("#finish-facebook").click()
+    refresh.get_by_role("heading", name="Messenger session updated").wait_for()
+    assert len(store.accounts()) == count
+    updated = store.account(record["id"], private=True)
+    assert updated["facebook_id"] == record["facebook_id"] and updated["chat_id"] == record["chat_id"]
+    assert updated["revision"] == record["revision"] + 1
+    assert "?start=" not in refresh.locator("#telegram-invite").get_attribute("href")
+    assert "SYNTHETIC_GUEST_SESSION" not in refresh.content()
+    assert not refresh.evaluate("document.documentElement.scrollWidth > innerWidth")
+    refresh.screenshot(path=str(output / "reconnect-complete-mobile.png"), full_page=True)
+    refresh_context.close()
     assert not errors, errors
     guest_context.close()
     second_context.close()

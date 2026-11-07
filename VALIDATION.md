@@ -1,5 +1,24 @@
 # Validation
 
+## Offline alerts and fixed-account reconnects
+
+- Synthetic-clock tests cover startup/warmup grace, stale/false heartbeats,
+  transient disconnects, stable recovery, anti-flap behavior, quiet-mode alerts,
+  intentional pause/unlink/removal and durable/concurrent alert claiming.
+- Reconnect tests require the paired Telegram owner and a signed claim-specific
+  callback before every browser action. Wrong senders, chats, bot authors,
+  signatures, expired/stale bindings and revoked links cannot continue.
+- Full refresh checks preserve account count, original Facebook ID, Telegram
+  pairing, options and archive identity while rotating credentials once. Different
+  Facebook accounts disable the link and close the browser without changing any
+  account. Client-supplied account selectors/cookies cannot change the target.
+- Concurrent/replayed claims, confirmations and completion have one effect;
+  rate limits and single-active-link constraints survive reopening the store.
+  Full capacity still permits refresh and reconnects reserve no new account slot.
+- A real HTTPS mobile guest fixture checks the reconnect confirmation gate,
+  owner approval, browser handoff and completion without a new account or pairing.
+  All users, cookies, browser frames and Telegram responses are synthetic.
+
 ## Help language selection
 
 - Check `/help`, `/pomoc` and `/start` in both saved languages: each reply lists

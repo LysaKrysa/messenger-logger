@@ -40,7 +40,7 @@
     if (!next) return;
     invitation = next; csrf = ""; active = false; finished = false; ready = false; viewFailures = 0; setFinishing(false); stopView(); resetInput();
     hideError(); $("claim-form").reset();
-    $("welcome").hidden = false; $("facebook").hidden = true; $("telegram").hidden = true;
+    $("welcome").hidden = false; $("facebook").hidden = true; $("telegram").hidden = true; $("reconnect-confirm").hidden = true;
     $("remote-screen").hidden = true; $("remote-placeholder").hidden = false;
     $("step-welcome").classList.add("current"); $("step-facebook").classList.remove("current"); $("step-telegram").classList.remove("current");
   });
@@ -64,14 +64,28 @@
     if (finished && data.state !== "completed") return; // Ignore an older in-flight status response.
     csrf = data.csrf;
     finished = data.state === "completed";
-    $("welcome").hidden = true; $("facebook").hidden = finished; $("telegram").hidden = !finished;
+    const reconnect = data.purpose === "reconnect";
+    const waiting = reconnect && !data.confirmed && !finished;
+    $("welcome").hidden = true; $("facebook").hidden = finished || waiting; $("telegram").hidden = !finished;
+    $("reconnect-confirm").hidden = !waiting;
+    if (waiting) {
+      active = false; stopView(); resetInput();
+      if (data.telegram_url && /^https:\/\/t\.me\/[A-Za-z0-9_]+$/.test(data.telegram_url)) $("reconnect-telegram").href = data.telegram_url;
+    }
     $("step-welcome").classList.remove("current");
     $("step-facebook").classList.toggle("current", !finished); $("step-telegram").classList.toggle("current", finished);
     if (finished) {
       active = false; setFinishing(false); stopView(); resetInput(); hideError();
       $("telegram-invite").hidden = !data.telegram_url;
-      if (data.telegram_url && /^https:\/\/t\.me\/[A-Za-z0-9_]+\?start=[A-Za-z0-9_-]+$/.test(data.telegram_url)) $("telegram-invite").href = data.telegram_url;
+      if (data.telegram_url && /^https:\/\/t\.me\/[A-Za-z0-9_]+(?:\?start=[A-Za-z0-9_-]+)?$/.test(data.telegram_url)) $("telegram-invite").href = data.telegram_url;
       $("pairing-status").textContent = ({waiting: "Open Telegram above and press Start to connect your private chat.", pending_approval: "Telegram connected. Your administrator will approve your identity and start the logger.", approved: "Your Telegram destination is approved. Your administrator controls when capture starts.", expired: "The Telegram invitation expired. Ask your administrator for a new Telegram invitation."})[data.pairing];
+      if (reconnect) {
+        $("completion-title").textContent = "Messenger session updated";
+        $("completion-description").textContent = "Your existing account was refreshed and the temporary browser has closed.";
+        $("telegram-invite").textContent = "Return to Telegram";
+        $("pairing-status").textContent = "Your logger is reconnecting. Check its connection with the bot's status command.";
+        $("completion-note").textContent = "Your original Messenger account, Telegram pairing and saved settings are unchanged. No additional account was created.";
+      }
     }
   }
   async function status(reportErrors = true) {
@@ -90,7 +104,7 @@
     event.preventDefault(); hideError(); $("claim-button").disabled = true;
     try {
       const result = await api("claim", {token: invitation, name: $("guest-name").value, consent: $("guest-consent").checked}, true);
-      invitation = ""; history.replaceState(null, "", "/setup"); progress(result);
+      invitation = ""; history.replaceState(null, "", location.pathname); progress(result);
     } catch (error) { showError(error.message); } finally { $("claim-button").disabled = false; }
   });
   function metadata(data) {

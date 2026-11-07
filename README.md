@@ -35,6 +35,7 @@ dashboard manages a small shared workspace with one Telegram bot.
 | **Admin dashboard** | Manage up to six isolated account instances over HTTPS, replace cookies, and control capture. |
 | **One-time setup links** | Invite friends to connect through a temporary server browser and receive their Telegram invitation. List active links and disable them from the dashboard. |
 | **One shared bot** | Expiring Telegram invites, administrator approval, destination checks, and a private conversation topic map per person. |
+| **Offline alerts & reconnects** | Notify the paired owner and refresh only their original approved account through a one-time, Telegram-confirmed link. |
 
 > [!IMPORTANT]
 > This is an **unofficial, best-effort Messenger integration**, not a Meta product.

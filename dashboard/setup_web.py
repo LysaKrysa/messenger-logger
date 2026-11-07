@@ -87,11 +87,17 @@ def install(app, store, origin, browser=None):
         token, row = guest_session()
         if row["state"] != "claimed":
             raise DashboardError("Facebook setup is already complete. Continue to Telegram.")
+        if row["purpose"] == "reconnect" and not row["confirmed"]:
+            raise DashboardError("Approve this request in your paired Telegram chat before opening Facebook.")
         return token, row
 
     @guest.get("/setup")
     def page():
-        return render_template("setup.html")
+        return render_template("setup.html", reconnect=False)
+
+    @guest.get("/reconnect")
+    def reconnect_page():
+        return render_template("setup.html", reconnect=True)
 
     @guest.post("/setup/api/claim")
     def claim():
@@ -201,6 +207,8 @@ def install(app, store, origin, browser=None):
         if not isinstance(data, dict) or data.get("approve") is not True:
             raise DashboardError("Approve connecting this Facebook session before continuing.")
         if row["state"] == "claimed":
+            if row["purpose"] == "reconnect" and not row["confirmed"]:
+                raise DashboardError("Approve this request in your paired Telegram chat first.")
             try:
                 captured = browser.call(row["id"], "capture")
                 invitations.complete(token, captured.get("cookies"))
@@ -210,6 +218,11 @@ def install(app, store, origin, browser=None):
                 saved = invitations.session(token)
                 if saved and saved["state"] == "completed":
                     return jsonify(invitations.progress(token))
+                if saved is None:
+                    try:
+                        browser.call(row["id"], "stop")
+                    except DashboardError:
+                        pass
                 raise
             try:
                 browser.call(row["id"], "stop")
