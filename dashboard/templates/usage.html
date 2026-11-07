@@ -11,7 +11,7 @@
 </article>
 {% endmacro %}
 {% macro numeric(key, label, optional=false, help='') %}
-<div><label for="usage-{{ key }}">{{ label }}{% if optional %}<span class="optional">Optional</span>{% endif %}</label><input id="usage-{{ key }}" name="{{ key }}" type="number" min="{{ '0' if optional else '0.000001' }}" step="{{ '1' if key in ['requests_limit','backups_limit','object_requests','backups'] else 'any' }}" value="{{ usage.config[key] if usage.config[key] is not none else '' }}" {% if not optional %}required{% endif %} {% if help %}aria-describedby="note-{{ key }}"{% endif %}>{% if help %}<p class="field-note" id="note-{{ key }}">{{ help }}</p>{% endif %}</div>
+<div><label for="usage-{{ key }}">{{ label }}{% if optional %}<span class="optional">Optional</span>{% endif %}</label><input id="usage-{{ key }}" name="{{ key }}" type="number" min="{{ '0' if optional else '1' if key in ['requests_limit','backups_limit','object_requests','backups'] else '0.000001' }}" step="{{ '1' if key in ['requests_limit','backups_limit','object_requests','backups'] else 'any' }}" value="{{ usage.config[key] if usage.config[key] is not none else '' }}" {% if not optional %}required{% endif %} {% if help %}aria-describedby="note-{{ key }}"{% endif %}>{% if help %}<p class="field-note" id="note-{{ key }}">{{ help }}</p>{% endif %}</div>
 {% endmacro %}
 {% block content %}
 <div class="page-heading"><div><h1>Usage</h1><p class="muted">Server resources and your Oracle Always Free budgets.</p></div><span class="status {{ 'warning' if usage.stale else 'online' }}"><span class="dot"></span>{{ 'Waiting for monitoring' if not usage.available else 'Readings are stale' if usage.stale else 'Monitoring active' }}</span></div>

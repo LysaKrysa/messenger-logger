@@ -52,6 +52,8 @@ def verify(page, origin, store, output):
     page.get_by_label("Allocated OCPUs", exact=False).fill("1")
     page.get_by_label("Allocated memory (GB)", exact=False).fill("6")
     page.get_by_label("Object API requests this month", exact=False).fill("123")
+    invalid = page.locator("#usage-settings input").evaluate_all("elements => elements.filter(e => !e.validity.valid).map(e => ({name:e.name, message:e.validationMessage}))")
+    assert not invalid, invalid
     page.get_by_role("button", name="Save usage settings", exact=True).click()
     expect(page.get_by_role("status")).to_contain_text("Usage settings saved")
     assert store.setting("usage_config")["object_requests"] == 123
