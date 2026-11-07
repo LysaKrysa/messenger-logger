@@ -89,13 +89,13 @@ TEXT = {
             "Wysłano prośbę o połączenie. Poproś administratora o zatwierdzenie Twojego konta Telegram w panelu. "
             "Wiadomości i multimedia z połączonego Messengera będą mogły być zapisywane i przesyłane tutaj. "
             "Administrator serwera ma dostęp do archiwum tego konta. Lokalne kopie wygasają po trzech dniach; kopie w Telegramie pozostają. "
-            "Użyj /disconnect, aby anulować połączenie lub zatrzymać zapis. /en ustawia język angielski, a /pl polski dla Twoich powiadomień."),
+            "Użyj /odlacz, aby anulować połączenie lub zatrzymać zapis. /en ustawia język angielski, a /pl polski dla Twoich powiadomień."),
         "pair_unavailable": "To zaproszenie wygasło, zostało już użyte lub jest niedostępne. Poproś administratora o nowe.",
         "disconnected": "Usunięto połączenie z Telegramem. Zapis dla Twojego konta jest zatrzymywany. Dotychczasowe kopie w Telegramie pozostają.",
         "privacy": (
             "Ten bot przesyła kopie z konta Messenger połączonego przez administratora. "
             "Administrator ma dostęp do zapisanej sesji i archiwum. Lokalne kopie wiadomości wygasają po trzech dniach; kopie w Telegramie pozostają. "
-            "Treść rozmów zachowuje oryginalny język. /en i /pl zmieniają tylko Twoje powiadomienia bota. Użyj /disconnect, aby zatrzymać zapis."),
+            "Treść rozmów zachowuje oryginalny język. /en i /pl zmieniają tylko Twoje powiadomienia bota. Użyj /odlacz, aby zatrzymać zapis."),
         "help": (
             "Otwórz zaproszenie od administratora, aby poprosić o połączenie. Twoje konto jest oddzielone od innych użytkowników. "
             "Polecenia: /en — English, /pl — polski, /privacy, /disconnect. Nigdy nie wysyłaj temu botowi ciasteczek Messengera ani haseł."),
@@ -125,31 +125,31 @@ TEXT["en"].update({
     "value_unconfirmed": "Last delivery unconfirmed; no automatic resend", "value_never": "No recorded result",
     "value_on": "On", "value_off": "Off", "value_deleted": "Deleted messages only", "value_all": "All supported chat events",
     "help": (
-        "Commands (English / Polish aliases):\n\n"
-        "/status · /stan — connection, capture, last event and delivery health\n"
-        "/pause · /pauza — pause capture for your account\n"
-        "/resume · /wznow — resume new events after connection\n"
-        "/mode deleted · /tryb usuniete — forward deleted messages\n"
-        "/mode all · /tryb wszystkie — forward all supported chat events\n"
-        "/media on|off · /media wlacz|wylacz — attachment downloads\n"
-        "/quiet 1h · /cisza 1g — skip Telegram notifications for an hour\n"
-        "/quiet off · /cisza wylacz — end quiet mode\n"
-        "/settings · /ustawienia — your current settings\n"
+        "Commands:\n\n"
+        "/status — connection, capture, last event and delivery health\n"
+        "/pause — pause capture for your account\n"
+        "/resume — resume new events after connection\n"
+        "/mode deleted — forward deleted messages\n"
+        "/mode all — forward all supported chat events\n"
+        "/media on|off — attachment downloads\n"
+        "/quiet 1h — skip Telegram notifications for an hour\n"
+        "/quiet off — end quiet mode\n"
+        "/settings — your current settings\n"
         "/en — English · /pl — Polish\n"
-        "/privacy · /prywatnosc — privacy information\n"
-        "/disconnect · /odlacz (/stop) — unlink Telegram and stop capture\n"
+        "/privacy — privacy information\n"
+        "/disconnect — unlink Telegram and stop capture\n"
         "/start — welcome and help\n"
-        "/help · /pomoc — this list\n\n"
-        "Commands affect only your linked account across its topics. Polish aliases work in either language. "
+        "/help — this list\n\n"
+        "Commands affect only your linked account across its topics. "
         "Quiet durations: 5m, 1h, 24h (maximum one day); quiet mode keeps local capture running and skips notifications without a backlog. "
         "Resume does not import missed history. View-once alerts follow the administrator's separate setting. "
         "Original chat content keeps its language. Never send passwords or cookies here."),
 })
 TEXT["pl"].update({
     "disabled": "Pobieranie wyłączone",
-    "welcome": "Witaj w Messenger Logger. Wyślij /help lub /pomoc, aby zobaczyć wszystkie polecenia i zarządzać połączonym kontem. Ustawienia dotyczą tylko Ciebie.",
-    "not_paired": "Do Twojego Telegrama nie jest przypisane zatwierdzone konto Messenger. Otwórz zaproszenie administratora i poczekaj na zatwierdzenie. /help lub /pomoc pokazuje polecenia.",
-    "command_usage": "Nieprawidłowe argumenty. Wyślij /help lub /pomoc, aby zobaczyć polecenia i przykłady.",
+    "welcome": "Witaj w Messenger Logger. Wyślij /pomoc, aby zobaczyć wszystkie polecenia i zarządzać połączonym kontem. Ustawienia dotyczą tylko Ciebie.",
+    "not_paired": "Do Twojego Telegrama nie jest przypisane zatwierdzone konto Messenger. Otwórz zaproszenie administratora i poczekaj na zatwierdzenie. /pomoc pokazuje polecenia.",
+    "command_usage": "Nieprawidłowe argumenty. Wyślij /pomoc, aby zobaczyć polecenia i przykłady.",
     "pause_saved": "Zlecono wstrzymanie zapisu dla Twojego konta. Proces wkrótce się zatrzyma. Wiadomości z okresu pauzy nie zostaną później pobrane.",
     "resume_saved": "Zlecono wznowienie zapisu dla Twojego konta. Po połączeniu będą zapisywane nowe zdarzenia. Pominięta historia nie zostanie pobrana.",
     "mode_saved": "Tryb przesyłania: {value}. Zapis lokalny trwa dalej. Zmiana dotyczy kolejnych zdarzeń i nie wymaga ponownego łączenia z Messengerem.",
@@ -166,23 +166,23 @@ TEXT["pl"].update({
     "value_unconfirmed": "Ostatnia wysyłka niepotwierdzona; bez automatycznego ponawiania", "value_never": "Brak zapisanego wyniku",
     "value_on": "Włączone", "value_off": "Wyłączone", "value_deleted": "Tylko usunięte wiadomości", "value_all": "Wszystkie obsługiwane zdarzenia rozmów",
     "help": (
-        "Polecenia (angielskie / polskie odpowiedniki):\n\n"
-        "/status · /stan — połączenie, zapis, ostatnie zdarzenie i stan wysyłki\n"
-        "/pause · /pauza — wstrzymaj zapis dla swojego konta\n"
-        "/resume · /wznow — wznów zapis nowych zdarzeń po połączeniu\n"
-        "/mode deleted · /tryb usuniete — przesyłaj usunięte wiadomości\n"
-        "/mode all · /tryb wszystkie — przesyłaj wszystkie obsługiwane zdarzenia\n"
-        "/media on|off · /media wlacz|wylacz — pobieranie załączników\n"
-        "/quiet 1h · /cisza 1g — pomijaj powiadomienia Telegrama przez godzinę\n"
-        "/quiet off · /cisza wylacz — zakończ wyciszenie\n"
-        "/settings · /ustawienia — Twoje aktualne ustawienia\n"
-        "/en — English · /pl — polski\n"
-        "/privacy · /prywatnosc — informacje o prywatności\n"
-        "/disconnect · /odlacz (/stop) — odłącz Telegram i zatrzymaj zapis\n"
+        "Polecenia:\n\n"
+        "/stan — połączenie, zapis, ostatnie zdarzenie i stan wysyłki\n"
+        "/pauza — wstrzymaj zapis dla swojego konta\n"
+        "/wznow — wznów zapis nowych zdarzeń po połączeniu\n"
+        "/tryb usuniete — przesyłaj usunięte wiadomości\n"
+        "/tryb wszystkie — przesyłaj wszystkie obsługiwane zdarzenia\n"
+        "/media wlacz|wylacz — pobieranie załączników\n"
+        "/cisza 1g — pomijaj powiadomienia Telegrama przez godzinę\n"
+        "/cisza wylacz — zakończ wyciszenie\n"
+        "/ustawienia — Twoje aktualne ustawienia\n"
+        "/en — język angielski · /pl — język polski\n"
+        "/prywatnosc — informacje o prywatności\n"
+        "/odlacz — odłącz Telegram i zatrzymaj zapis\n"
         "/start — powitanie i pomoc\n"
-        "/help · /pomoc — ta lista\n\n"
-        "Polecenia dotyczą tylko Twojego konta we wszystkich jego tematach. Obie wersje działają niezależnie od wybranego języka. "
-        "Czas wyciszenia: 5m, 1h lub 1g, 24h (maksymalnie doba). Wyciszenie zachowuje zapis lokalny i pomija powiadomienia bez późniejszej kolejki. "
+        "/pomoc — ta lista\n\n"
+        "Polecenia dotyczą tylko Twojego konta we wszystkich jego tematach. "
+        "Czas wyciszenia: 5m, 1g, 24g (maksymalnie doba). Wyciszenie zachowuje zapis lokalny i pomija powiadomienia bez późniejszej kolejki. "
         "Wznowienie nie pobiera pominiętej historii. Powiadomienia o jednorazowych multimediach zależą od osobnego ustawienia administratora. "
         "Treść rozmów zachowuje oryginalny język. Nie wysyłaj tutaj haseł ani ciasteczek."),
 })

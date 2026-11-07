@@ -2,6 +2,7 @@
 import io
 import json
 import os
+import re
 import threading
 from unittest.mock import patch
 
@@ -44,7 +45,7 @@ class CommandTests(Base):
     def test_first_reply_and_start_invitation_open_with_localized_help_notice(self):
         first = self.command("/start")
         self.assertTrue(first.startswith("Witaj"))
-        self.assertIn("/help", first)
+        self.assertNotIn("/help", first)
         self.assertIn("/pomoc", first)
         self.assertNotIn("Witaj", self.command("/settings"))
         self.assertTrue(self.command("/start").startswith("Witaj"))
@@ -54,19 +55,35 @@ class CommandTests(Base):
         text = self.command("/start " + token, user=44444444)
         self.assertTrue(text.startswith("Witaj"))
         self.assertIn("prośbę o połączenie", text)
+        self.assertIn("/odlacz", text)
+        self.assertNotIn("/disconnect", text)
         self.assertIsNone(self.store.account(ident)["chat_id"])
 
-    def test_help_lists_all_commands_in_both_languages_and_aliases_work_independently(self):
-        for language, heading, command in (("pl", "Polecenia", "/pomoc"), ("en", "Commands", "/help")):
+    def test_help_displays_only_selected_language_while_both_command_languages_work(self):
+        for language, heading in (("pl", "Polecenia"), ("en", "Commands")):
             self.command("/" + language)
-            text = self.command(command)
-            self.assertIn(heading, text)
-            for name in ("status", "stan", "pause", "pauza", "resume", "wznow", "mode", "tryb", "media", "quiet", "cisza", "settings", "ustawienia", "help", "pomoc", "en", "pl", "privacy", "disconnect"):
-                self.assertIn("/" + name, text)
+            expected = {"stan", "pauza", "wznow", "tryb", "media", "cisza", "ustawienia", "pomoc", "en", "pl", "prywatnosc", "odlacz", "start"} if language == "pl" else {"status", "pause", "resume", "mode", "media", "quiet", "settings", "help", "en", "pl", "privacy", "disconnect", "start"}
+            for trigger in ("/help", "/pomoc"):
+                text = self.command(trigger)
+                self.assertIn(heading, text)
+                self.assertEqual(set(re.findall(r"/([a-z]+)", text)), expected)
+                self.assertIn("/media wlacz|wylacz" if language == "pl" else "/media on|off", text)
+                self.assertNotIn("English" if language == "pl" else "polskie", text)
+            start = self.command("/start")
+            self.assertEqual(set(re.findall(r"/([a-z]+)", start)), expected)
         self.assertIn("Your settings", self.command("/ustawienia@" + BOT["username"]))
         self.command("/pl")
         self.assertIn("Twoje ustawienia", self.command("/settings"))
         self.assertLess(len(text.encode("utf-16-le")) // 2, 3500)
+
+    def test_help_language_remains_scoped_to_each_recipient(self):
+        self.command("/en")
+        english = self.command("/pomoc")
+        polish = self.command("/help", user=OTHER)
+        self.assertIn("/status — connection", english)
+        self.assertNotIn("/stan", english)
+        self.assertIn("/stan — połączenie", polish)
+        self.assertNotIn("/status", polish)
 
     def test_pause_resume_are_owned_idempotent_and_preserve_pairing(self):
         before = self.store.account(self.first)
