@@ -7,6 +7,10 @@ limit is **six Messenger accounts in total**, including your own. Every account
 has a separate worker, session/device state, archive, media directory, and
 Telegram destination. This is an invitation-only deployment for trusted users.
 
+New attachment and voice-file notifications from the shared bot include a
+**Download file** button (or **Download ZIP** for bundles). Pressing it requests
+a file copy in the same private topic. See [download controls](TELEGRAM.md#download-buttons-in-the-shared-bot).
+
 The **Usage** tab shows live server resources, observed monthly transfer and
 editable Oracle Always Free budgets. See [usage and quota tracking](USAGE.md) for
 setup, scope, current reference limits and monitoring behavior.

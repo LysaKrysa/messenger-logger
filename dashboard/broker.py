@@ -27,6 +27,12 @@ MAX_FORM_FIELD = 32768
 # Werkzeug reads multipart input in 64 KiB chunks. This decoder window must
 # fit a chunk plus boundary/header tails, independently of each text field.
 MULTIPART_MEMORY = 128 * 1024
+DOWNLOAD_CALLBACK = "download_document:v1"
+
+
+def download_markup(filename):
+    label = "⬇ Download ZIP" if filename.lower().endswith(".zip") else "⬇ Download file"
+    return {"inline_keyboard": [[{"text": label, "callback_data": DOWNLOAD_CALLBACK}]]}
 
 
 class BotUnavailable(RuntimeError):
@@ -104,6 +110,10 @@ class PairingReceiver:
             return
         # Commit receipt before any reply: an ambiguous reply must not be replayed.
         self.store.set_setting("bot_offset", ident)
+        callback = update.get("callback_query")
+        if isinstance(callback, dict):
+            self.download(callback)
+            return
         message = update.get("message")
         if not isinstance(message, dict):
             return
@@ -140,6 +150,63 @@ class PairingReceiver:
         except BotUnavailable:
             pass  # Pairing state is durable; do not repeat an uncertain reply.
 
+    def answer_download(self, query_id, text, *, alert=False):
+        try:
+            self.api.json("answerCallbackQuery", {"callback_query_id": query_id, "text": text,
+                                                 "show_alert": alert, "cache_time": 0})
+        except BotUnavailable:
+            pass  # A failed acknowledgement does not replay a download.
+
+    def download(self, query):
+        if query.get("data") != DOWNLOAD_CALLBACK:
+            return
+        query_id = query.get("id")
+        if not isinstance(query_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", query_id):
+            return
+        sender, message = query.get("from"), query.get("message")
+        if not isinstance(sender, dict) or not isinstance(message, dict):
+            self.answer_download(query_id, "This download is unavailable.", alert=True)
+            return
+        sender_id = sender.get("id")
+        if type(sender_id) is int and sender_id > 0 and not self.store.take_limit("download-callback:" + str(sender_id), 12, 60):
+            return
+        chat, author, document = message.get("chat"), message.get("from"), message.get("document")
+        bot = self.store.bot()
+        owner = sender.get("id")
+        valid = (type(owner) is int and owner > 0 and sender.get("is_bot") is False
+                 and isinstance(chat, dict) and chat.get("type") == "private"
+                 and type(chat.get("id")) is int and chat["id"] == owner
+                 and isinstance(author, dict) and bot and author.get("id") == bot["id"]
+                 and author.get("is_bot") is True and isinstance(document, dict))
+        account = next((row for row in self.store.accounts() if row["chat_id"] == owner), None) if valid else None
+        file_id = document.get("file_id") if isinstance(document, dict) else None
+        message_id, topic_id = message.get("message_id"), message.get("message_thread_id")
+        # Only a Telegram-provided document ID is reused: never accept URLs,
+        # filesystem paths or a file ID supplied through callback_data.
+        valid = (account is not None and isinstance(file_id, str)
+                 and re.fullmatch(r"[A-Za-z0-9_-]{16,1024}", file_id)
+                 and type(message_id) is int and 0 < message_id < 2**53
+                 and (topic_id is None or type(topic_id) is int and 0 < topic_id < 2**53))
+        if not valid:
+            self.answer_download(query_id, "This download is unavailable for this conversation.", alert=True)
+            return
+        if not self.store.take_limit("download-user:" + str(owner), 6, 60) or not self.store.take_limit("download-message:" + str(owner) + ":" + str(message_id), 1, 15):
+            self.answer_download(query_id, "Wait a moment before requesting another copy.", alert=True)
+            return
+        self.answer_download(query_id, "Sending a downloadable file copy.")
+        params = {"chat_id": account["chat_id"], "document": file_id,
+                  "caption": "Requested download. Open the attachment and use Telegram’s Save/Download option.",
+                  "disable_content_type_detection": True, "disable_notification": True,
+                  "reply_parameters": {"message_id": message_id, "allow_sending_without_reply": False}}
+        if topic_id is not None:
+            params["message_thread_id"] = topic_id
+        try:
+            self.api.json("sendDocument", params)
+        except BotUnavailable:
+            # handle() durably committed the update before entering here. A
+            # network outcome must not trigger a second automatic file copy.
+            print("Telegram download copy could not be confirmed; no automatic resend.", flush=True)
+
     def run(self):
         checked_bot = None
         while not self.stop.is_set():
@@ -155,7 +222,7 @@ class PairingReceiver:
                         self.stop.wait(15)
                         continue
                     checked_bot = bot["id"]
-                updates = self.api.json("getUpdates", {"offset": self.store.setting("bot_offset", -1) + 1, "timeout": 20, "allowed_updates": ["message"], "limit": 25})
+                updates = self.api.json("getUpdates", {"offset": self.store.setting("bot_offset", -1) + 1, "timeout": 20, "allowed_updates": ["message", "callback_query"], "limit": 25})
                 if not isinstance(updates, list):
                     raise BotUnavailable
                 for update in updates:
@@ -215,6 +282,11 @@ def create_app(store=None, api=None):
                 upload.stream.seek(0)
                 if size > MAX_FILE:
                     return jsonify(ok=False, error_code=413, description="Request Entity Too Large"), 413
+                # The gateway, not a worker, owns the keyboard and callback.
+                # Future uploads remain one document notification; only an
+                # explicit, owner-checked button press requests another copy.
+                params["reply_markup"] = json.dumps(download_markup(upload.filename or "attachment.bin"))
+                params["disable_content_type_detection"] = "true"
                 boundary = "gateway-" + secrets.token_hex(16)
                 prefix = b""
                 for key, value in params.items():

@@ -2,6 +2,42 @@
 
 [← README](../README.md#telegram-forwarding) · [Troubleshooting](TROUBLESHOOTING.md)
 
+
+## Download buttons in the shared bot
+
+New document notifications sent through the dashboard gateway include an inline
+**Download file** button. Voice recordings are sent as documents too. Bundled
+notifications use **Download ZIP**. The original notification remains one file
+plus its caption; the gateway does not send another message automatically.
+
+Pressing the button explicitly requests one downloadable document copy, replying
+to the original message in the same private conversation topic. Open that copy
+and use Telegram's Save/Download action. A bot cannot force a download into your
+phone's storage. The requested copy has no button of its own.
+
+The shared receiver verifies the private chat, pressing user's identity, approved
+pairing, original bot author and document metadata from Telegram. The button’s callback data
+contains no file ID or URL. Workers cannot inject buttons, choose another file,
+call callback/file APIs or expose the bot token through a download link.
+
+Copies reuse Telegram's existing document ID; no public file URL, local archive
+read or additional media upload is needed. A paired owner can request a copy
+while capture is paused and after local 72-hour retention expires. Disconnecting
+or removing the account disables its button requests; existing Telegram files
+retain their native Save/Download controls.
+
+Duplicate updates are committed before replies and never automatically replayed.
+Rapid taps are limited. An uncertain send is not automatically retried. The
+single invitation receiver also handles callbacks; do not run another poller.
+
+Only new shared-gateway uploads get these buttons. Existing messages and the
+standalone relay keep Telegram's built-in attachment download controls. To apply
+this feature, replace the release's dashboard/broker.py and restart
+messenger-dashboard-bot; account workers need no rebuild or restart.
+
+Reference: [Telegram inline keyboards and callbacks](https://core.telegram.org/bots/api#inlinekeyboardbutton).
+
+
 ## Initial setup
 
 1. Create/select a bot with **@BotFather**.
