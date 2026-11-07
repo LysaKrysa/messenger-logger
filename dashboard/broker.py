@@ -13,10 +13,11 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from .store import DashboardError, from_environment
+from .bot_commands import ALIASES, CONTROLS, handle_control
 from telegram_i18n import tr
 
 METHODS = {
-    "getMe": set(), "getLocale": set(), "getChat": {"chat_id"},
+    "getMe": set(), "getLocale": set(), "getControls": set(), "reportStatus": {"revision", "connected", "last_event"}, "getChat": {"chat_id"},
     "getChatMember": {"chat_id", "user_id"},
     "createForumTopic": {"chat_id", "name", "icon_color"},
     "editForumTopic": {"chat_id", "message_thread_id", "name"},
@@ -124,36 +125,51 @@ class PairingReceiver:
         chat_id = chat.get("id")
         if chat.get("type") != "private" or type(chat_id) is not int or chat_id <= 0 or type(sender.get("id")) is not int or sender.get("id") != chat_id or sender.get("is_bot"):
             return
-        if not self.store.take_limit("pair:" + str(chat_id), 6, 60):
+        if not self.store.take_limit("bot-command:" + str(chat_id), 20, 60):
             return
         text = message.get("text", "")
         if not isinstance(text, str) or len(text) > 256:
             return
-        command, _, parameter = text.strip().partition(" ")
+        parts = text.strip().split(maxsplit=1)
+        command, parameter = (parts + [""])[:2] if parts else ("", "")
         command, addressed, username = command.partition("@")
         bot = self.store.bot()
         if addressed and (not bot or username.casefold() != bot["username"].casefold()):
             return
         language = self.store.telegram_language(chat_id)
-        if command in {"/en", "/pl"}:
+        canonical = ALIASES.get(command.removeprefix("/").casefold(), command.removeprefix("/").casefold())
+        if not command.startswith("/"):
+            canonical = ""
+        if canonical in CONTROLS:
+            reply = handle_control(self.store, chat_id, canonical, parameter, language)
+        elif canonical in {"en", "pl"}:
             if parameter.strip():
                 return
-            language = command[1:]
+            language = canonical
             self.store.set_telegram_language(chat_id, language)
             reply = tr(language, "language_saved")
-        elif command == "/start" and parameter:
+        elif canonical == "start" and parameter:
             username = sender.get("username")
             label = "@" + username if isinstance(username, str) and re.fullmatch(r"[A-Za-z0-9_]{1,64}", username) else "Telegram user " + str(chat_id)
             accepted = self.store.claim_invite(parameter.strip(), chat_id, label)
             reply = tr(language, "pair_requested" if accepted else "pair_unavailable")
-        elif command in {"/disconnect", "/stop"}:
+        elif parameter:
+            reply = tr(language, "command_usage")
+        elif canonical in {"disconnect", "stop"}:
             self.store.disconnect_user(chat_id)
             reply = tr(language, "disconnected")
-        elif command == "/privacy":
+        elif canonical == "privacy":
             reply = tr(language, "privacy")
-        elif command in {"/start", "/help"}:
+        elif canonical in {"start", "help"}:
             reply = tr(language, "help")
         else:
+            reply = ""
+        welcome_key = "bot_welcomed:" + str(bot["id"] if bot else 0) + ":" + str(chat_id)
+        first = not self.store.setting(welcome_key, False)
+        if first or canonical == "start":
+            self.store.set_setting(welcome_key, True)
+            reply = tr(language, "welcome") + ("\n\n" + reply if reply else "")
+        if not reply:
             return
         try:
             params = {"chat_id": chat_id, "text": reply, "disable_notification": True}
@@ -276,18 +292,23 @@ def create_app(store=None, api=None):
         account = store.authenticate_worker(authorization.removeprefix("Bearer ")) if authorization.startswith("Bearer ") else None
         if not account:
             return jsonify(ok=False, error_code=403, description="Gateway account is not authorized"), 403
-        if not store.take_limit("gateway:" + account["id"], 180, 60):
+        bucket = "worker-control:" if method in {"getControls", "reportStatus"} else "gateway:"
+        if not store.take_limit(bucket + account["id"], 180, 60):
             return jsonify(ok=False, error_code=429, description="Gateway account rate limit reached"), 429
         if method not in METHODS:
             return jsonify(ok=False, error_code=403, description="Gateway method is not permitted"), 403
+        attempted = False
         try:
-            if method == "getLocale":
-                if request.content_length is None or request.content_length > 256:
+            if method in {"getLocale", "getControls", "reportStatus"}:
+                if request.content_length is None or request.content_length > 1024:
                     raise DashboardError("Locale requests must be empty JSON objects.")
                 params = request.get_json(silent=True)
+                if method == "reportStatus":
+                    store.report_worker(account, params)
+                    return jsonify(ok=True, result=True)
                 if params != {}:
                     raise DashboardError("Locale requests must be empty JSON objects.")
-                return jsonify(ok=True, result={"language": store.telegram_language(account["chat_id"])})
+                return jsonify(ok=True, result=store.controls(account) if method == "getControls" else {"language": store.telegram_language(account["chat_id"])})
             bot = store.bot()
             if not bot:
                 raise BotUnavailable
@@ -298,6 +319,8 @@ def create_app(store=None, api=None):
                 if any(len(value.encode("utf-8")) > MAX_FORM_FIELD for value in params.values()):
                     raise RequestEntityTooLarge()
                 validate_destination(method, params, account, bot)
+                if store.controls(account)["quiet_until"] > store.clock():
+                    return jsonify(ok=True, result={"_logger_suppressed": True})
                 upload = request.files["document"]
                 upload.stream.seek(0, 2)
                 size = upload.stream.tell()
@@ -321,6 +344,7 @@ def create_app(store=None, api=None):
                     while block := upload.stream.read(65536):
                         yield block
                     yield suffix
+                attempted = True
                 status, payload = api.post(method, content(), chat=account["chat_id"], content_type="multipart/form-data; boundary=" + boundary, length=len(prefix) + size + len(suffix))
             else:
                 if request.content_length is None or request.content_length > 65536:
@@ -329,7 +353,13 @@ def create_app(store=None, api=None):
                 if not isinstance(params, dict):
                     raise DashboardError("Request must be JSON.")
                 validate_destination(method, params, account, bot)
+                if method == "sendMessage" and store.controls(account)["quiet_until"] > store.clock():
+                    return jsonify(ok=True, result={"_logger_suppressed": True})
+                attempted = method == "sendMessage"
                 status, payload = api.post(method, json.dumps(params).encode(), chat=account["chat_id"])
+            if attempted:
+                outcome = "sent" if 200 <= status < 300 and payload.get("ok") is True else "rejected" if 400 <= status < 500 else "unconfirmed"
+                store.record_delivery(account["id"], outcome)
             # The worker performs the existing safe diagnostic classification.
             return jsonify(payload), status if 100 <= status <= 599 else 502
         except DashboardError:
@@ -339,6 +369,8 @@ def create_app(store=None, api=None):
             # the real 4xx status rather than labelling them ambiguous sends.
             raise
         except Exception:
+            if attempted:
+                store.record_delivery(account["id"], "unconfirmed")
             # A network outcome is unconfirmed, never a definitive Telegram 4xx.
             return jsonify(ok=False, error_code=502, description="Gateway delivery outcome is unconfirmed"), 502
 

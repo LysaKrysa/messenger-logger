@@ -82,6 +82,23 @@ class MediaTests(unittest.TestCase):
     def attachment(self):
         return load_messages(self.root / "messenger-modern.sqlite3")[1][0]["attachments"][0]
 
+    def test_user_can_disable_queued_and_new_downloads_then_resume_future_files(self):
+        allowed = [True]
+        self.saver.allow_download = lambda: allowed[0]
+        self.submit(message("queued"))
+        allowed[0] = False
+        self.submit(message("disabled"))
+        self.settle()
+        self.assertEqual(self.bridge.calls, [])
+        for mid in ("queued", "disabled"):
+            self.assertEqual(self.store.relay_snapshot("42", mid)["attachments"][0]["downloadStatus"], "disabled")
+        allowed[0] = True
+        self.submit(message("future"))
+        self.settle()
+        self.assertEqual(len(self.bridge.calls), 1)
+        media = self.store.relay_snapshot("42", "future")["attachments"][0]
+        self.assertEqual((self.root / media["localPath"]).read_bytes(), PNG)
+
     def test_regular_image_bytes_private_atomic_file_and_view_path(self):
         self.submit(message())
         self.settle()

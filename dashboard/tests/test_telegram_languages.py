@@ -65,7 +65,7 @@ class LanguageTests(Base):
     def test_choice_is_available_before_pairing_and_survives_disconnect(self):
         self.command("/en", user=33333333)
         self.command("/help", user=33333333, update_id=11)
-        self.assertIn("Commands: /en", json.loads(self.api.calls[-1][1])["text"])
+        self.assertIn("/en — English", json.loads(self.api.calls[-1][1])["text"])
         self.command("/privacy", user=22222222, update_id=12)
         self.assertIn("Ten bot przesyła", json.loads(self.api.calls[-1][1])["text"])
         self.command("/en", update_id=13)
@@ -139,6 +139,7 @@ class LanguageTests(Base):
             return Response(result.data)
         try:
             for ident, own in ((self.first, "111222333"), (self.second, "444555666")):
+                self.store.action(ident, "options", mode="all")
                 row = self.store.account(ident, private=True)
                 archive = EventStore(self.root / ident, own_id=own, started_at=1000, run_id=ident)
                 archive.accept({"type": "metadata", "data": {"contacts": [{"id": 222, "name": "Saved"}], "threads": [{"id": 42, "name": "Unnamed conversation"}]}})

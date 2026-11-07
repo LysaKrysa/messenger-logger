@@ -113,7 +113,7 @@ class Manager:
                 "--mount", "type=bind,source=" + str(data) + ",target=/data",
                 "--mount", "type=bind,source=" + str(credentials) + ",target=/run/logger-credentials.json,readonly"]
         env = {"LOGGER_CREDENTIALS_FILE": "/run/logger-credentials.json", "LOGGER_TIMEZONE": "Europe/Warsaw", "LOGGER_E2EE": "true",
-               "DATA_DIR": "/data", "TELEGRAM_ENABLED": "true", "TELEGRAM_RELAY_URL": "http://127.0.0.1:8788",
+               "DATA_DIR": "/data", "LOGGER_ACCOUNT_REVISION": str(row["revision"]), "TELEGRAM_ENABLED": "true", "TELEGRAM_RELAY_URL": "http://127.0.0.1:8788",
                "TELEGRAM_BOT_ID": str(bot["id"]), "TELEGRAM_CHAT_ID": str(row["chat_id"]), "TELEGRAM_TOPICS": "true",
                "TELEGRAM_MODE": row["mode"], "TELEGRAM_SEND_MEDIA": "true", "TELEGRAM_VIEW_ONCE": "true" if row["view_once"] else "false",
                "LOGGER_MEDIA_MAX_MB": "25", "GOMEMLIMIT": "256MiB"}

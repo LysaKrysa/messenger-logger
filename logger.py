@@ -111,6 +111,7 @@ class LoggerRuntime:
         self.logged_this_run = 0
         self.messages_this_run = 0
         self.deleted_this_run = 0
+        self.last_event = None
 
     def report(self, message):
         # All callers use fixed text plus numeric counters / allowlisted reason codes.
@@ -147,6 +148,7 @@ class LoggerRuntime:
                         if following is not None:
                             accepted.append(({"type": "messageUnsend", "data": {}}, following))
                     for source, summary in accepted:
+                        self.last_event = time.time()
                         self.logged_this_run += 1
                         if summary["type"] == "message":
                             self.messages_this_run += 1
@@ -190,7 +192,8 @@ class LoggerRuntime:
             self.store.accept({"type": "metadata", "data": {"contacts": [{"id": expected_id, "name": user["name"]}]}})
         self.names = ContactNames(self.bridge, self.store, self.stop)
         self.relay = TelegramRelay(self.report, self.store, timezone=self.zone.key, names=self.names)
-        self.media = MediaSaver(self.bridge, self.store, self.report, self.stop, on_update=self.relay.media_updated)
+        self.media = MediaSaver(self.bridge, self.store, self.report, self.stop, on_update=self.relay.media_updated,
+                                allow_download=self.relay.download_media)
         if self.relay.enabled:
             self.report("Telegram forwarding enabled (mode=" + self.relay.mode + "; topics=" + str(self.relay.use_topics).lower() + ").")
         self.consumer = threading.Thread(target=self._consume, name="event-storage", daemon=True)
@@ -204,6 +207,7 @@ class LoggerRuntime:
             self.report("Messenger listener ready for unencrypted chats only; encrypted transport is disabled in configuration.")
         self.media.start()
         self.names.start()
+        self.relay.report_status(True, self.last_event)
         self.report("Media downloads enabled for newly captured attachments (up to " + str(self.media.max_bytes // (1024 * 1024)) + " MiB each).")
 
     def run(self, encrypted):
@@ -235,6 +239,7 @@ class LoggerRuntime:
             if health.get("failureCode") and health.get("permanent") is True:
                 raise BridgeFailure("Messenger transport stopped: " + safe_reason(health["failureCode"]) + ".", terminal=True)
             ready = health.get("connected") is True and (not encrypted or health.get("e2eeConnected") is True)
+            self.relay.report_status(ready, self.last_event)
             if ready:
                 disconnected_since = None
             elif disconnected_since is None:
@@ -252,6 +257,8 @@ class LoggerRuntime:
 
     def close(self):
         self.stop.set()
+        if self.relay:
+            self.relay.report_status(False, self.last_event)
         if self.media:
             self.media.stopping.set()
         if self.names:

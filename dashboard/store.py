@@ -131,6 +131,93 @@ class Store:
             cursor = db.execute("UPDATE accounts SET revision=revision+1 WHERE desired=1 AND cookies IS NOT NULL AND chat_id IS NOT NULL")
             return cursor.rowcount
 
+    @staticmethod
+    def _controls(db, ident):
+        row = db.execute("SELECT value FROM settings WHERE key=?", ("controls:" + ident,)).fetchone()
+        value = json.loads(row[0]) if row else {}
+        return {"media": value.get("media", True), "quiet_until": value.get("quiet_until", 0), "mode_since": value.get("mode_since", 0),
+                "quiet_windows": value.get("quiet_windows", [])}
+
+    def controls(self, row):
+        with self.db() as db:
+            value = self._controls(db, row["id"])
+        return dict(value, mode=row["mode"], language=self.telegram_language(row["chat_id"]))
+
+    def user_account(self, user_id):
+        with self.db() as db:
+            row = db.execute("SELECT id FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
+        return self.account(row[0]) if row else None
+
+    def user_control(self, user_id, command, value=None):
+        """Resolve ownership and apply one allowlisted command atomically."""
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
+            if row is None:
+                return False
+            ident, now = row["id"], self.clock()
+            controls = self._controls(db, ident)
+            if command in {"pause", "resume"}:
+                desired = int(command == "resume")
+                if desired and not row["cookies"]:
+                    return False
+                db.execute("UPDATE accounts SET desired=?,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=? AND desired<>?", (desired, ident, desired))
+            elif command == "mode" and value in {"all", "deleted"}:
+                if row["mode"] != value:
+                    controls["mode_since"] = now
+                db.execute("UPDATE accounts SET mode=? WHERE id=?", (value, ident))
+            elif command == "media" and type(value) is bool:
+                controls["media"] = value
+            elif command == "quiet" and type(value) is int and 0 <= value <= 86400:
+                windows = [[start, min(end, now)] for start, end in controls["quiet_windows"] if end > now - 259200 and start < now]
+                if value:
+                    end = now + value
+                    if windows and windows[-1][1] >= now:
+                        windows[-1][1] = end
+                    else:
+                        windows.append([now, end])
+                    controls["quiet_until"] = end
+                else:
+                    controls["quiet_until"] = 0
+                # Merge overlapping windows; retain all windows within retention
+                # so a delayed notification can never replay a quiet event.
+                merged = []
+                for start, end in windows:
+                    if end <= start:
+                        continue
+                    if merged and start <= merged[-1][1]:
+                        merged[-1][1] = max(end, merged[-1][1])
+                    else:
+                        merged.append([start, end])
+                controls["quiet_windows"] = ([[merged[0][0], merged[-512][1]]] + merged[-511:]) if len(merged) > 512 else merged
+            else:
+                raise DashboardError("Invalid user control.")
+            db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                       ("controls:" + ident, json.dumps(controls)))
+        return True
+
+    def report_worker(self, row, value):
+        if (not isinstance(value, dict) or set(value) != {"revision", "connected", "last_event"}
+                or type(value["revision"]) is not int or value["revision"] != row["revision"]
+                or type(value["connected"]) is not bool
+                or value["last_event"] is not None and (type(value["last_event"]) not in {int, float}
+                    or not 0 <= value["last_event"] <= self.clock() + 5)):
+            raise DashboardError("Invalid worker status.")
+        key = "worker_status:" + row["id"]
+        previous = self.setting(key, {})
+        last_event = value["last_event"] or previous.get("last_event")
+        if last_event and last_event < self.clock() - 259200:
+            last_event = None
+        self.set_setting(key, dict(value, last_event=last_event, updated=self.clock()))
+
+    def record_delivery(self, ident, outcome):
+        if outcome not in {"sent", "rejected", "unconfirmed"}:
+            raise DashboardError("Invalid delivery status.")
+        key = "delivery_status:" + account_id(ident)
+        previous = self.setting(key, {})
+        self.set_setting(key, {"outcome": outcome, "updated": self.clock(),
+                              "last_sent": self.clock() if outcome == "sent" else previous.get("last_sent")})
+
     def set_password(self, password):
         if not isinstance(password, str) or not 14 <= len(password) <= 128:
             raise DashboardError("Use an administrator password between 14 and 128 characters.")
@@ -291,6 +378,7 @@ class Store:
                 if not row["pending_chat"]:
                     raise DashboardError("There is no pending Telegram pairing.")
                 db.execute("UPDATE accounts SET chat_id=pending_chat,pending_chat=NULL,pending_name=NULL,revision=revision+1 WHERE id=?", (ident,))
+                db.execute("DELETE FROM settings WHERE key IN (?,?,?)", ("controls:" + ident, "worker_status:" + ident, "delivery_status:" + ident))
             elif action == "disconnect":
                 db.execute("UPDATE accounts SET desired=0,chat_id=NULL,pending_chat=NULL,pending_name=NULL,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=?", (ident,))
                 db.execute("DELETE FROM invites WHERE account_id=?", (ident,))
@@ -305,6 +393,7 @@ class Store:
                     raise DashboardError("Choose deleted messages or all supported chat events.")
                 db.execute("UPDATE accounts SET mode=?,view_once=?,revision=revision+1 WHERE id=?", (mode, int(bool(view_once)), ident))
             elif action == "remove":
+                db.execute("DELETE FROM settings WHERE key IN (?,?,?)", ("controls:" + ident, "worker_status:" + ident, "delivery_status:" + ident))
                 db.execute("DELETE FROM invites WHERE account_id=?", (ident,))
                 db.execute("DELETE FROM accounts WHERE id=?", (ident,))
             else:

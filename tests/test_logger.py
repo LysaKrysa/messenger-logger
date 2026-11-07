@@ -499,6 +499,8 @@ class RPCTests(TemporaryTest):
                 while runtime.messages_this_run == 0 and time.monotonic() < deadline:
                     time.sleep(0.01)
                 self.assertEqual(runtime.messages_this_run, 1)
+                self.assertIsNotNone(runtime.last_event)
+                self.assertLessEqual(runtime.last_event, time.time())
             finally:
                 runtime.close()
         self.assertIn("Messenger listener ready (regular and encrypted)", output.getvalue())
