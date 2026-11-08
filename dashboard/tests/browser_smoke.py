@@ -23,6 +23,7 @@ from dashboard.tests.layout_browser_smoke import verify as verify_layout
 from dashboard.tests.usage_browser_smoke import seed as seed_usage, verify as verify_usage
 from dashboard.tests.delivery_browser_smoke import OfflineTelegram, verify as verify_deliveries
 from dashboard.tests.portal_browser_smoke import verify as verify_portal
+from dashboard.tests.cookie_editor_browser_smoke import verify as verify_cookie_editor
 
 
 def main():
@@ -96,6 +97,7 @@ def main():
                 page.get_by_role("button", name="Start", exact=True).click()
                 assert store.account(ident)["desired"] == 1
                 page.screenshot(path=str(output / "account.png"), full_page=True)
+                verify_cookie_editor(page, origin, account_url, store, output)
                 verify_deliveries(page, origin, account_url, store, app.extensions["deliveries"], telegram, output)
                 verify_portal(browser, page, origin, store, app, telegram, output)
                 page.goto(account_url)

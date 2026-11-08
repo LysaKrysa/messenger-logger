@@ -347,15 +347,31 @@ class Store:
         except ConfigurationError:
             raise DashboardError("Cookie JSON is invalid. Include c_user, xs, and datr from your own session.") from None
 
-    def update_cookies(self, ident, raw):
+    def _cookie_edit_stamp(self, row):
+        return self.secret("cookie-edit:" + row["id"] + ":" + str(row["pair_epoch"]) + ":" + str(row["facebook_id"]) + ":" + digest(row["cookies"] or ""))
+
+    def cookie_editor(self, ident):
+        """Decrypt one session only for an explicit administrator edit request."""
+        row = self.account(ident, private=True)
+        if row is None or not row["cookies"]:
+            raise DashboardError("No saved cookies are available for this account.")
+        cookies = self.unseal("cookies:" + ident, row["cookies"])
+        public = {"id": row["id"], "name": row["name"], "facebook_id": row["facebook_id"]}
+        return public, json.dumps(cookies, ensure_ascii=True, indent=2, sort_keys=True), self._cookie_edit_stamp(row)
+
+    def update_cookies(self, ident, raw, *, expected_stamp=None):
         parsed = self.validate_cookies(raw)
         account_id(ident)
         try:
             with self.db() as db:
-                row = db.execute("SELECT facebook_id FROM accounts WHERE id=?", (ident,)).fetchone()
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT * FROM accounts WHERE id=?", (ident,)).fetchone()
                 if not row:
                     raise DashboardError("Account not found.")
-                if row[0] and row[0] != parsed["c_user"]:
+                if expected_stamp is not None and (not isinstance(expected_stamp, str) or not expected_stamp.isascii()
+                        or not hmac.compare_digest(expected_stamp, self._cookie_edit_stamp(row))):
+                    raise DashboardError("Saved cookies or account pairing changed. Reload saved cookies before editing again.")
+                if row["facebook_id"] and row["facebook_id"] != parsed["c_user"]:
                     raise DashboardError("Those cookies belong to a different Messenger account. Create a separate account instead.")
                 db.execute("UPDATE accounts SET cookies=?,facebook_id=?,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=?", (self.seal("cookies:" + ident, parsed), parsed["c_user"], ident))
         except sqlite3.IntegrityError:

@@ -263,6 +263,26 @@ arbitrary incoming bot messages are not added to Messenger archives.
 
 ## Administrator controls
 
+To troubleshoot a user's saved session, open their account, expand **Messenger
+session**, then click **Edit saved cookies**. This explicitly loads the stored
+cookie JSON into an administrator-only editor. Edit it and choose **Save cookie
+changes**. **Reload saved cookies** discards the current input and loads the latest
+stored session; **Cancel** returns to the account without saving.
+
+Cookies remain encrypted in the database. The editor response is private and
+non-cached, and credentials are cleared from its fields when the document is
+left. Ordinary account pages and user dashboards do not display stored cookie
+values. The editor requires the existing administrator session and CSRF/Origin
+checks. Invalid JSON and a different `c_user` are rejected; if another reconnect
+or administrator refreshes the session meanwhile, reload before saving. Saving
+rotates the worker credential/revision and reconnects an active account; a paused
+account stays paused. User profile sessions and Telegram pairing are preserved.
+
+For this update, copy `dashboard/*.py`, `dashboard/templates/*.html` and
+`dashboard/static/*` from the extracted release to their corresponding directories
+under `/opt/messenger-dashboard/app/`, then restart the three dashboard services.
+No account-worker restart or native rebuild is needed just to expose the editor.
+
 | Control | Behavior |
 | :--- | :--- |
 | Save cookies | Validates required fields and account identity, encrypts the new credentials, and restarts an active worker. |

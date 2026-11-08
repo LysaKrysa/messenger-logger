@@ -1,4 +1,4 @@
-"""Administrator-only web UI. Never exposes saved credentials or archive bodies."""
+"""Admin workspace, with explicit private cookie editing and separate owner routes."""
 from __future__ import annotations
 
 import hmac
@@ -96,6 +96,8 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
             "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin", "Strict-Transport-Security": "max-age=31536000",
             "Content-Security-Policy": "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
             "Permissions-Policy": "camera=(), microphone=(), geolocation=()"})
+        if request.endpoint == "cookie_editor":
+            response.headers.update({"Cache-Control": "no-store, private", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, noarchive"})
         return response
 
     @app.context_processor
@@ -229,6 +231,25 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
     def cookies(ident):
         store.update_cookies(ident, request.form.get("cookies", ""))
         return redirect(url_for("account", ident=ident))
+
+    @app.post("/accounts/<ident>/cookies/edit")
+    def cookie_editor(ident):
+        row = account_row(ident)
+        action = request.form.get("action")
+        if action == "load":
+            account, cookie_json, stamp = store.cookie_editor(ident)
+            return render_template("cookie_editor.html", account=account, cookie_json=cookie_json, stamp=stamp)
+        if action == "save":
+            stamp = request.form.get("stamp", "")
+            if not re.fullmatch(r"[a-f0-9]{64}", stamp):
+                raise DashboardError("Reopen the saved-cookie editor before saving.")
+            raw = request.form.get("cookies", "")
+            try:
+                store.update_cookies(ident, raw, expected_stamp=stamp)
+            except DashboardError as error:
+                return render_template("cookie_editor.html", account=row, cookie_json=raw, stamp=stamp, error=str(error)), 400
+            return redirect(url_for("account", ident=ident, cookies_saved="1"))
+        raise DashboardError("Choose whether to load or save cookies.")
 
     @app.post("/accounts/<ident>/portal/revoke")
     def revoke_portal(ident):

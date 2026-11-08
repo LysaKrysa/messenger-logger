@@ -1,5 +1,12 @@
 "use strict";
 (() => {
+  const savedCookies = document.getElementById("saved-cookies");
+  if (savedCookies) {
+    window.addEventListener("pagehide", () => {
+      savedCookies.value = "";
+      savedCookies.defaultValue = "";
+    });
+  }
   const toggle = document.getElementById("nav-toggle");
   const sidebar = document.getElementById("workspace-navigation");
   const main = document.getElementById("workspace-main");
