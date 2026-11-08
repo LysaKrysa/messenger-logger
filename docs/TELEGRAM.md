@@ -139,7 +139,7 @@ are skipped before a send attempt and are not delivery failures.
 | Outcome | Meaning |
 | --- | --- |
 | Sent | Telegram confirmed accepting the notification; this is not a read receipt. |
-| Failed | The API rejected it before delivery, or a manual resend failed local payload validation. |
+| Failed | The API rejected it, or the resend was stopped locally before sending (for example changed filters or invalid payload). |
 | Uncertain | Timeout, server error or interrupted send: it may already have arrived. |
 | Sending | A claimed attempt is still in progress; a stale claim becomes uncertain after two minutes. |
 

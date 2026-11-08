@@ -240,9 +240,10 @@ class Deliveries:
             self._current(db, current)
             db.execute("INSERT INTO delivery_history(id,account_id,pair_epoch,facebook_id,chat_id,group_key,thread_id,name,kind,created,updated,expires,outcome,cache_ref,retry_of) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'sending',?,?)",
                        (ident, current["id"], current["pair_epoch"], current["facebook_id"], current["chat_id"], uuid.uuid4().hex, original["thread_id"], original["name"], original["kind"], self.store.clock(), self.store.clock(), original["expires"], source_id, original["id"]))
-        attempted, fields = False, None
+        attempted, validated, fields = False, False, None
         try:
             with self.cache.read(current["id"], source_id) as (metadata, blocks):
+                validated = True
                 fields = dict(metadata["fields"], chat_id=current["chat_id"])
                 topic = self.conversations.topic(current, original["thread_id"])
                 if topic is not None:
@@ -273,8 +274,9 @@ class Deliveries:
                 self.finish(current, ident)
             else:
                 with self.store.db() as db:
-                    db.execute("UPDATE delivery_history SET outcome='failed',reason='payload_unavailable' WHERE id=?", (ident,))
-                    db.execute("UPDATE delivery_history SET cache_size=0,cache_reason='unavailable' WHERE id=?", (source_id,))
+                    db.execute("UPDATE delivery_history SET outcome='failed',reason=? WHERE id=?", ("not_sent" if validated else "payload_unavailable", ident))
+                    if not validated:
+                        db.execute("UPDATE delivery_history SET cache_size=0,cache_reason='unavailable' WHERE id=?", (source_id,))
             return self.get(current, ident)
         self.finish(current, ident, status, payload, fields=fields)
         return self.get(current, ident)

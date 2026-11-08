@@ -372,6 +372,26 @@ class HistoryWebTests(HistoryBase):
 
 
 class HistoryLifecycleTests(HistoryBase):
+    def test_filter_change_during_confirmation_keeps_valid_cached_content_for_later(self):
+        from contextlib import contextmanager
+        original = self.notify()
+        chat = self.chat()
+        token = self.history.intent(self.row, original["id"])
+        read = self.history.cache.read
+        @contextmanager
+        def change_after_validation(*args):
+            with read(*args) as payload:
+                self.conversations.update(self.row, chat["id"], include=False)
+                yield payload
+        with patch.object(self.history.cache, "read", change_after_validation):
+            child = self.history.resend(self.row, token, acknowledged=True)
+        self.assertEqual(child["outcome"], "failed")
+        self.assertEqual(child["reason"], "not_sent")
+        self.assertEqual(len(self.api.calls), 1)
+        self.conversations.update(self.row, chat["id"], include=True)
+        self.assertTrue(self.history.get(self.row, original["id"])["available"])
+        self.assertEqual(self.history.resend(self.row, self.history.intent(self.row, original["id"]), acknowledged=True)["outcome"], "sent")
+
     def test_stale_sending_turns_uncertain_without_network_or_extension(self):
         ident = self.history.begin(self.row, "sendMessage", self.context())
         self.history.save(self.row, ident, "sendMessage", {"chat_id": USER, "text": SECRET})
