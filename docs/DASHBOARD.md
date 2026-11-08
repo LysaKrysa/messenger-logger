@@ -25,6 +25,14 @@ setup, scope, current reference limits and monitoring behavior.
 The responsive workspace uses a mobile navigation drawer, grouped summaries and
 44 px controls. See [interface specification](UI_DESIGN.md) for layout and tokens.
 
+Each account page also links to **Conversation filters** and **Delivery history**.
+Set included/excluded chats and groups separately from forwarding preferences,
+inspect sent/failed/uncertain outcomes, and review an explicit resend with a
+duplicate acknowledgement. Owners have the same controls through private bot
+menus. See [filters](TELEGRAM.md#conversation-filters),
+[resend behavior and cache limits](TELEGRAM.md#delivery-history-and-explicit-resends),
+and [the upgrade commands](TELEGRAM.md#upgrade-an-existing-dashboard-for-filters-and-history).
+
 ## 1. Install alongside the current logger
 
 Use Ubuntu with systemd, Docker, and the existing pinned image

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+from datetime import datetime, timezone
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
 
@@ -35,7 +36,7 @@ def verify_bot(token):
         raise DashboardError("Telegram could not verify the bot. Check its token and server connectivity.") from None
 
 
-def create_app(store=None, *, origin=None, status_root=None, testing=False, browser_client=None):
+def create_app(store=None, *, origin=None, status_root=None, testing=False, browser_client=None, delivery_api=None):
     app = Flask(__name__)
     store = store or from_environment()
     origin = (origin or os.environ.get("DASHBOARD_ORIGIN", "https://localhost:8443")).rstrip("/")
@@ -48,6 +49,10 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
                       SESSION_COOKIE_NAME="messenger_admin", TRUSTED_HOSTS=[parsed.hostname], MAX_FORM_PARTS=12,
                       MAX_FORM_MEMORY_SIZE=140 * 1024)
     app.extensions["store"] = store
+    from .broker import TelegramAPI
+    from .deliveries import Deliveries
+    deliveries = Deliveries(store, delivery_api or TelegramAPI(store))
+    app.extensions["deliveries"] = deliveries
     from .setup_web import install
     install(app, store, origin, browser_client)
 
@@ -98,6 +103,10 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
     @app.template_filter("filesize")
     def filesize(value):
         return f"{value / 1024 ** 3:.1f} GB" if isinstance(value, (int, float)) else "—"
+
+    @app.template_filter("eventdate")
+    def eventdate(value):
+        return datetime.fromtimestamp(value, timezone.utc).strftime("%d %b %Y, %H:%M UTC")
 
     @app.get("/favicon.ico")
     def favicon():
@@ -155,6 +164,64 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
     @app.get("/accounts/<ident>")
     def account(ident):
         return account_page(ident)
+
+    def account_row(ident):
+        row = store.account(ident)
+        if row is None:
+            abort(404)
+        return row
+
+    def page_offset():
+        raw = request.args.get("offset", "0")
+        if not re.fullmatch(r"[0-9]{1,4}", raw) or int(raw) > 4980:
+            raise DashboardError("Invalid page.")
+        return int(raw)
+
+    @app.route("/accounts/<ident>/conversations", methods=["GET", "POST"])
+    def conversations(ident):
+        row = account_row(ident)
+        catalogue = deliveries.conversations
+        if request.method == "POST":
+            if not row["chat_id"]:
+                raise DashboardError("Approve Telegram pairing before configuring conversation filters.")
+            if request.form.get("action") == "default":
+                value = request.form.get("capture_default")
+                if value not in {"all", "include"}:
+                    raise DashboardError("Choose the default capture policy.")
+                catalogue.update(row, default=value == "all")
+            elif request.form.get("action") == "rule":
+                value = request.form.get("capture")
+                if value not in {"inherit", "include", "exclude"}:
+                    raise DashboardError("Choose a capture setting.")
+                catalogue.update(row, request.form.get("conversation", ""), include={"inherit": None, "include": True, "exclude": False}[value], mode=request.form.get("forward", ""))
+            else:
+                raise DashboardError("Invalid filter action.")
+            return redirect(url_for("conversations", ident=ident, saved="1", offset=page_offset()))
+        offset = page_offset()
+        return render_template("conversations.html", account=row, policy=store.filters(ident),
+                               conversations=catalogue.rows(row, offset), offset=offset, saved=request.args.get("saved") == "1")
+
+    @app.get("/accounts/<ident>/deliveries")
+    def delivery_history(ident):
+        row = account_row(ident)
+        offset = page_offset()
+        outcome = request.args.get("outcome")
+        return render_template("deliveries.html", account=row, deliveries=deliveries.rows(row, offset, 20), offset=offset,
+                               outcome=outcome if outcome in {"sent", "failed", "uncertain"} else None)
+
+    @app.route("/accounts/<ident>/deliveries/<delivery>/resend", methods=["GET", "POST"])
+    def resend(ident, delivery):
+        row = account_row(ident)
+        value = deliveries.get(row, delivery)
+        if value is None:
+            abort(404)
+        if request.method == "POST":
+            # The token alone is insufficient: explicitly acknowledge possible
+            # duplicates, then consume a pairing-bound, single-use confirmation.
+            result = deliveries.resend(row, request.form.get("confirmation", ""), acknowledged=request.form.get("acknowledge") == "yes", expected_delivery=delivery)
+            return redirect(url_for("delivery_history", ident=ident, outcome=result["outcome"] if result else "uncertain"))
+        return render_template("resend.html", account=row, delivery=value,
+                               confirmation=deliveries.intent(row, delivery) if value["available"] else None)
 
     @app.post("/accounts/<ident>/cookies")
     def cookies(ident):

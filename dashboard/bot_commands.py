@@ -10,6 +10,7 @@ ALIASES = {
     "tryb": "mode", "cisza": "quiet", "ustawienia": "settings", "pomoc": "help",
     "prywatnosc": "privacy", "prywatność": "privacy", "odlacz": "disconnect", "odłącz": "disconnect",
     "polacz": "reconnect", "połącz": "reconnect",
+    "rozmowy": "chats", "wysylki": "deliveries", "wysyłki": "deliveries",
 }
 CONTROLS = {"status", "pause", "resume", "mode", "media", "quiet", "settings"}
 

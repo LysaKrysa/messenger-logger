@@ -1,5 +1,32 @@
 # Validation
 
+## Conversation filters and delivery history
+
+- Capture tests exclude direct/group content before persistence; include-only
+  unknown chats keep routing metadata without bodies. Excluded chats cannot
+  enqueue/finish queued downloads or record edits, reactions or deletions.
+- Worker/gateway policies distinguish capture exclusion, local-only forwarding,
+  per-chat all/deleted and inherited view-once settings. Strict owned catalogue
+  reports reject stale revisions, extra content and malformed metadata. Unknown
+  legacy contexts cannot bypass configured filters.
+- History checks confirmed/rejected/uncertain outcomes, durable claims, stale
+  sends, bounded definite-topic repair, encryption, per-account/global quotas,
+  exact large voice/ZIP multipart resends and compact Telegram file-ID reuse.
+- Account-specific chunk authentication rejects corruption, truncation, reordered
+  blocks, cross-account substitution and symlinks before any resend API call.
+  Retention maintenance works while capture is stopped, never extending original
+  expiry or deliberately deleting Telegram copies.
+- Single-use acknowledged confirmations reject concurrent/replayed/wrong-owner,
+  wrong-delivery, expired, revoked-pairing and filter-blocked requests. Pause and
+  quiet still allow explicit owner resends. Attempts retain both original and
+  resend results; uncertainty is never replayed automatically.
+- Admin route tests cover authentication, CSRF, Origin and metadata-only views;
+  owner callbacks reject foreign/group/bot-origin requests. Help/menu labels
+  follow each user's selected language with no displayed alternate aliases.
+- A real HTTPS browser fixture exercises filter forms, an acknowledgement-gated
+  resend and mobile/desktop layouts at 320, 390 and 1440 px. It uses synthetic
+  Telegram responses; no real Facebook login or Telegram send is used.
+
 ## Offline alerts and fixed-account reconnects
 
 - Synthetic-clock tests cover startup/warmup grace, stale/false heartbeats,

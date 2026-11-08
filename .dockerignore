@@ -9,6 +9,7 @@
 !telegram_relay.py
 !telegram_format.py
 !telegram_i18n.py
+!conversation_filters.py
 !telegram_topics.py
 !identities.py
 !contact_names.py

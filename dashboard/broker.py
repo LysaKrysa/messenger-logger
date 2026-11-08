@@ -15,10 +15,12 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from .store import DashboardError, from_environment
 from .bot_commands import ALIASES, CONTROLS, handle_control
 from .connection_alerts import ConnectionAlerts
+from .deliveries import Deliveries
+from .history_commands import HistoryCommands, PREFIXES
 from telegram_i18n import tr
 
 METHODS = {
-    "getMe": set(), "getLocale": set(), "getControls": set(), "reportStatus": {"revision", "connected", "last_event"}, "getChat": {"chat_id"},
+    "getMe": set(), "getLocale": set(), "getControls": set(), "reportConversations": {"revision", "conversations"}, "reportStatus": {"revision", "connected", "last_event"}, "getChat": {"chat_id"},
     "getChatMember": {"chat_id", "user_id"},
     "createForumTopic": {"chat_id", "name", "icon_color"},
     "editForumTopic": {"chat_id", "message_thread_id", "name"},
@@ -106,7 +108,9 @@ class PairingReceiver:
     def __init__(self, store, api, *, origin=None):
         self.store, self.api = store, api
         self.stop = threading.Event()
-        self.connection_alerts = ConnectionAlerts(store, api, origin=origin)
+        self.deliveries = Deliveries(store, api)
+        self.history = HistoryCommands(store, api, self.deliveries)
+        self.connection_alerts = ConnectionAlerts(store, api, origin=origin, maintenance=self.deliveries.cleanup)
 
     def handle(self, update):
         ident = update.get("update_id")
@@ -118,6 +122,8 @@ class PairingReceiver:
         if isinstance(callback, dict):
             if isinstance(callback.get("data"), str) and callback["data"].startswith(("rca.", "rcr.")):
                 self.connection_alerts.confirm(callback)
+            elif isinstance(callback.get("data"), str) and callback["data"].startswith(PREFIXES):
+                self.history.callback(callback)
             else:
                 self.download(callback)
             return
@@ -145,10 +151,13 @@ class PairingReceiver:
         canonical = ALIASES.get(command.removeprefix("/").casefold(), command.removeprefix("/").casefold())
         if not command.startswith("/"):
             canonical = ""
+        markup = None
         if canonical == "reconnect":
             reply = self.connection_alerts.request(chat_id, language) if not parameter else tr(language, "command_usage")
         elif canonical in CONTROLS:
             reply = handle_control(self.store, chat_id, canonical, parameter, language)
+        elif canonical in {"chats", "deliveries"}:
+            reply, markup = self.history.menu(chat_id, canonical, language) if not parameter else (tr(language, "command_usage"), None)
         elif canonical in {"en", "pl"}:
             if parameter.strip():
                 return
@@ -180,6 +189,8 @@ class PairingReceiver:
             return
         try:
             params = {"chat_id": chat_id, "text": reply, "disable_notification": True}
+            if markup:
+                params["reply_markup"] = markup
             topic = message.get("message_thread_id")
             if type(topic) is int and 0 < topic < 2**53:
                 params["message_thread_id"] = topic
@@ -288,6 +299,8 @@ def create_app(store=None, api=None):
     store = store or from_environment()
     api = api or TelegramAPI(store)
     app.extensions.update(store=store, telegram=api, pairing=PairingReceiver(store, api))
+    deliveries = app.extensions["pairing"].deliveries
+    app.extensions["deliveries"] = deliveries
 
     @app.after_request
     def headers(response):
@@ -300,13 +313,19 @@ def create_app(store=None, api=None):
         account = store.authenticate_worker(authorization.removeprefix("Bearer ")) if authorization.startswith("Bearer ") else None
         if not account:
             return jsonify(ok=False, error_code=403, description="Gateway account is not authorized"), 403
-        bucket = "worker-control:" if method in {"getControls", "reportStatus"} else "gateway:"
+        bucket = "worker-control:" if method in {"getControls", "reportStatus", "reportConversations"} else "gateway:"
         if not store.take_limit(bucket + account["id"], 180, 60):
             return jsonify(ok=False, error_code=429, description="Gateway account rate limit reached"), 429
         if method not in METHODS:
             return jsonify(ok=False, error_code=403, description="Gateway method is not permitted"), 403
         attempted = False
+        delivery_id, params = None, None
         try:
+            if method == "reportConversations":
+                if request.content_length is None or request.content_length > 65536:
+                    raise DashboardError("Conversation report is too large.")
+                deliveries.conversations.report(account, request.get_json(silent=True))
+                return jsonify(ok=True, result=True)
             if method in {"getLocale", "getControls", "reportStatus"}:
                 if request.content_length is None or request.content_length > 1024:
                     raise DashboardError("Locale requests must be empty JSON objects.")
@@ -320,6 +339,7 @@ def create_app(store=None, api=None):
             bot = store.bot()
             if not bot:
                 raise BotUnavailable
+            context = deliveries.context(request.headers.get("X-Logger-Context")) if method in {"sendMessage", "sendDocument"} else None
             if method == "sendDocument":
                 if set(request.files) != {"document"} or len(request.files.getlist("document")) != 1 or any(len(request.form.getlist(key)) != 1 for key in request.form):
                     raise DashboardError("Upload fields are not permitted.")
@@ -327,7 +347,7 @@ def create_app(store=None, api=None):
                 if any(len(value.encode("utf-8")) > MAX_FORM_FIELD for value in params.values()):
                     raise RequestEntityTooLarge()
                 validate_destination(method, params, account, bot)
-                if store.controls(account)["quiet_until"] > store.clock():
+                if store.controls(account)["quiet_until"] > store.clock() or not deliveries.allowed(account, context["thread"], context["kind"]) or context["expires"] <= store.clock():
                     return jsonify(ok=True, result={"_logger_suppressed": True})
                 upload = request.files["document"]
                 upload.stream.seek(0, 2)
@@ -352,6 +372,8 @@ def create_app(store=None, api=None):
                     while block := upload.stream.read(65536):
                         yield block
                     yield suffix
+                delivery_id = deliveries.begin(account, method, context)
+                deliveries.save(account, delivery_id, method, params, upload.stream, filename, size)
                 attempted = True
                 status, payload = api.post(method, content(), chat=account["chat_id"], content_type="multipart/form-data; boundary=" + boundary, length=len(prefix) + size + len(suffix))
             else:
@@ -361,13 +383,18 @@ def create_app(store=None, api=None):
                 if not isinstance(params, dict):
                     raise DashboardError("Request must be JSON.")
                 validate_destination(method, params, account, bot)
-                if method == "sendMessage" and store.controls(account)["quiet_until"] > store.clock():
+                if method == "sendMessage" and (store.controls(account)["quiet_until"] > store.clock() or not deliveries.allowed(account, context["thread"], context["kind"]) or context["expires"] <= store.clock()):
                     return jsonify(ok=True, result={"_logger_suppressed": True})
                 attempted = method == "sendMessage"
+                if attempted:
+                    delivery_id = deliveries.begin(account, method, context)
+                    deliveries.save(account, delivery_id, method, params)
                 status, payload = api.post(method, json.dumps(params).encode(), chat=account["chat_id"])
-            if attempted:
-                outcome = "sent" if 200 <= status < 300 and payload.get("ok") is True else "rejected" if 400 <= status < 500 else "unconfirmed"
-                store.record_delivery(account["id"], outcome)
+            if delivery_id:
+                try:
+                    deliveries.finish(account, delivery_id, status, payload, fields=params)
+                except Exception:
+                    print("Delivery history update unavailable; no automatic resend.", flush=True)
             # The worker performs the existing safe diagnostic classification.
             return jsonify(payload), status if 100 <= status <= 599 else 502
         except DashboardError:
@@ -377,8 +404,8 @@ def create_app(store=None, api=None):
             # the real 4xx status rather than labelling them ambiguous sends.
             raise
         except Exception:
-            if attempted:
-                store.record_delivery(account["id"], "unconfirmed")
+            if attempted and delivery_id:
+                deliveries.finish(account, delivery_id)
             # A network outcome is unconfirmed, never a definitive Telegram 4xx.
             return jsonify(ok=False, error_code=502, description="Gateway delivery outcome is unconfirmed"), 502
 

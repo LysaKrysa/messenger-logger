@@ -192,8 +192,9 @@ class LoggerRuntime:
             self.store.accept({"type": "metadata", "data": {"contacts": [{"id": expected_id, "name": user["name"]}]}})
         self.names = ContactNames(self.bridge, self.store, self.stop)
         self.relay = TelegramRelay(self.report, self.store, timezone=self.zone.key, names=self.names)
+        self.store.capture_allowed = self.relay.capture_allowed
         self.media = MediaSaver(self.bridge, self.store, self.report, self.stop, on_update=self.relay.media_updated,
-                                allow_download=self.relay.download_media)
+                                allow_download=self.relay.download_media, allow_conversation=self.relay.capture_allowed)
         if self.relay.enabled:
             self.report("Telegram forwarding enabled (mode=" + self.relay.mode + "; topics=" + str(self.relay.use_topics).lower() + ").")
         self.consumer = threading.Thread(target=self._consume, name="event-storage", daemon=True)
@@ -240,6 +241,7 @@ class LoggerRuntime:
                 raise BridgeFailure("Messenger transport stopped: " + safe_reason(health["failureCode"]) + ".", terminal=True)
             ready = health.get("connected") is True and (not encrypted or health.get("e2eeConnected") is True)
             self.relay.report_status(ready, self.last_event)
+            self.relay.report_conversations()
             if ready:
                 disconnected_since = None
             elif disconnected_since is None:

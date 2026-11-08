@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Conversation filters · {{ account.name }}{% endblock %}
+{% block breadcrumb %}Conversation filters{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('account',ident=account.id) }}">{{ icon('back') }}{{ account.name }}</a>
+<div class="page-heading"><div><h1>Conversation filters</h1><p class="muted">Choose what to capture and what to forward. The same controls are available to the account owner through /chats or /rozmowy in Telegram.</p></div><a class="button secondary" href="{{ url_for('delivery_history',ident=account.id) }}">Delivery history</a></div>
+{% if saved %}<div class="notice" role="status">Conversation settings saved. Connected workers refresh them within a few seconds.</div>{% endif %}
+<section class="panel narrow"><h2>Default capture policy</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="default">
+<label for="capture-default">Conversations to capture</label><select id="capture-default" name="capture_default"><option value="all" {% if policy.capture_default %}selected{% endif %}>All conversations, except excluded</option><option value="include" {% if not policy.capture_default %}selected{% endif %}>Only explicitly included conversations</option></select>
+<p class="field-note">Excluding a chat or group stops new content capture, downloads and forwarding. Turning forwarding off keeps capture local. Previously saved data still expires after 72 hours; filtering does not erase it or remove Telegram copies.</p>
+<button class="button secondary" {% if not account.chat_id %}disabled{% endif %}>Save default policy</button></form></section>
+<div class="section-heading"><div><h2>Known conversations</h2><p class="muted">Conversations appear after the worker observes chat activity or metadata. No message history is imported. Up to 200 explicit rules.</p></div></div>
+<div class="record-list">
+{% for chat in conversations %}
+<article class="record"><div class="record-heading"><div><h2>{{ chat.name or 'Conversation ' ~ chat.thread_id }}</h2><p class="field-note">ID {{ chat.thread_id }}</p></div><span class="status {{ 'online' if chat.capture_enabled else '' }}">{{ 'Capturing' if chat.capture_enabled else 'Excluded' }}</span></div>
+<p class="muted">Effective forwarding: {{ {'all':'All supported events','deleted':'Deleted messages only','off':'Off'}[chat.forward_mode] }}</p>
+<details class="help-details"><summary>Change conversation settings</summary><form method="post" class="filter-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="rule"><input type="hidden" name="conversation" value="{{ chat.id }}">
+<div><label for="capture-{{ chat.id }}">Capture</label><select id="capture-{{ chat.id }}" name="capture"><option value="inherit" {% if chat.capture is none %}selected{% endif %}>Use default capture policy</option><option value="include" {% if chat.capture is sameas true %}selected{% endif %}>Include this conversation</option><option value="exclude" {% if chat.capture is sameas false %}selected{% endif %}>Exclude this conversation</option></select></div>
+<div><label for="forward-{{ chat.id }}">Telegram forwarding</label><select id="forward-{{ chat.id }}" name="forward">{% for value,label in [('inherit','Use account forwarding preferences'),('all','All supported events'),('deleted','Deleted messages only'),('off','Off — keep capture local')] %}<option value="{{ value }}" {% if chat.forward == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<button class="button secondary" {% if not account.chat_id %}disabled{% endif %}>Save conversation</button></form></details>
+</article>
+{% else %}<div class="empty-state"><h2>No conversations yet</h2><p>Start the paired account and wait for a fresh chat event. Names appear when the Messenger transport provides them; IDs identify unnamed chats.</p></div>{% endfor %}
+</div>
+<p class="field-note">An explicit “Deleted messages only” rule waits for deletion, including view-once content. “Use account forwarding preferences” follows the account’s view-once setting. Capture exclusions always take priority. An already running upload or download may finish.</p>
+<nav class="pagination" aria-label="Conversation pages">{% if offset %}<a class="button secondary" href="{{ url_for('conversations',ident=account.id,offset=offset-20) }}">Previous</a>{% endif %}<a class="button secondary" href="{{ url_for('conversations',ident=account.id,offset=offset) }}">Refresh</a>{% if conversations|length == 20 and offset < 4980 %}<a class="button secondary" href="{{ url_for('conversations',ident=account.id,offset=offset+20) }}">Next</a>{% endif %}</nav>
+{% endblock %}
