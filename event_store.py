@@ -721,3 +721,22 @@ class EventStore:
             if self.run_id:
                 return dict(self.db.execute("SELECT type,COUNT(*) FROM events WHERE run_id=? GROUP BY type", (self.run_id,)).fetchall())
             return dict(self.db.execute("SELECT type,COUNT(*) FROM events GROUP BY type").fetchall())
+
+    def dashboard_stats(self):
+        """Owned retained-content counts only; no bodies, names, IDs or URLs."""
+        result = dict(messages=0, deletions=0, attachments=0, files=0, media_bytes=0, conversations=0)
+        with self.lock:
+            cutoff = self.clock() - (self.retention_seconds or 259200)
+            chats = set()
+            for tid, deleted, attachments in self.db.execute("SELECT thread_id,deleted,attachments FROM messages WHERE captured_at>? AND sender_id!='' AND sender_id!=?", (cutoff, self.own_id)):
+                result["messages"] += 1
+                result["deletions"] += int(bool(deleted))
+                chats.add(tid)
+                values = json.loads(attachments or "[]")
+                result["attachments"] += len(values)
+                for item in values:
+                    if item.get("downloadStatus") == "saved":
+                        result["files"] += 1
+                        result["media_bytes"] += max(0, number(item.get("savedBytes")))
+            result["conversations"] = len(chats)
+        return result

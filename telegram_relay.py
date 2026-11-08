@@ -31,7 +31,7 @@ from conversation_filters import DEFAULT, valid as valid_filters, capture, forwa
 # Cloud Bot API multipart uploads: https://core.telegram.org/bots/api#sending-files
 MAX_UPLOAD_BYTES = 50_000_000
 ERROR_RESPONSE_BYTES = 8192
-API_METHODS = frozenset({"getLocale", "getControls", "reportStatus", "reportConversations", "getMe", "getChat", "getChatMember", "createForumTopic",
+API_METHODS = frozenset({"getLocale", "getControls", "reportStatus", "reportStats", "reportConversations", "getMe", "getChat", "getChatMember", "createForumTopic",
                          "editForumTopic", "sendMessage", "sendDocument"})
 
 
@@ -149,6 +149,7 @@ class TelegramRelay:
         self.filters_ready = False
         self.catalog_after = ""
         self.delivery_context = {}
+        self.next_stats = 0
         if self.enabled:
             self.token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
             self.chat = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -264,6 +265,8 @@ class TelegramRelay:
                     self.mode = value["mode"]
                 if type(value.get("media")) is bool:
                     self.downloads = self.send_media = value["media"]
+                if type(value.get("view_once")) is bool:
+                    self.view_once = value["view_once"]
                 for key in ("quiet_until", "mode_since"):
                     candidate = value.get(key)
                     if type(candidate) in {int, float} and 0 <= candidate < 2**53:
@@ -297,6 +300,20 @@ class TelegramRelay:
         except (ValueError, TelegramAPIRejected, TelegramRequestError):
             pass
 
+    def report_stats(self, health, started, messages, deletions, events, encrypted):
+        if not self.enabled or not getattr(self, "gateway", "") or time.monotonic() < self.next_stats:
+            return
+        self.next_stats = time.monotonic() + 30
+        try:
+            data = self.store.dashboard_stats()
+            data.update(revision=int(os.environ.get("LOGGER_ACCOUNT_REVISION", "0")), started_at=started,
+                        regular_connected=health.get("connected") is True,
+                        encrypted_connected=health.get("e2eeConnected") is True if encrypted else None,
+                        run_messages=messages, run_deletions=deletions, run_events=events)
+            self._api("reportStats", data)
+        except (ValueError, TelegramAPIRejected, TelegramRequestError):
+            pass
+
     def _muted(self, observed=None):
         now = time.time()
         return self.quiet_until > now or observed is not None and any(start <= observed < end for start, end in self.quiet_windows)
@@ -307,7 +324,7 @@ class TelegramRelay:
             self.store.finish_telegram(tid, mid, part, "skipped")
 
     def _post(self, method, body, content_type="application/json", *, length=None, delivery=None):
-        internal = method in {"getLocale", "getControls", "reportStatus", "reportConversations"}
+        internal = method in {"getLocale", "getControls", "reportStatus", "reportStats", "reportConversations"}
         if not internal:
             if self.stopping.wait(max(0.0, self.next_send - time.monotonic())):
                 raise InterruptedError

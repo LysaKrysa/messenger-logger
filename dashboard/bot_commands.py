@@ -11,6 +11,7 @@ ALIASES = {
     "prywatnosc": "privacy", "prywatność": "privacy", "odlacz": "disconnect", "odłącz": "disconnect",
     "polacz": "reconnect", "połącz": "reconnect",
     "rozmowy": "chats", "wysylki": "deliveries", "wysyłki": "deliveries",
+    "panel": "dashboard",
 }
 CONTROLS = {"status", "pause", "resume", "mode", "media", "quiet", "settings"}
 

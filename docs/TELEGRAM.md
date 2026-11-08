@@ -69,6 +69,7 @@ accepted regardless of the user's reply language.
 | `/settings` | `/ustawienia` | Your language, capture state, forwarding mode, downloads and quiet-until time. |
 | `/chats` | `/rozmowy` | Include/exclude chats and groups and set forwarding independently. |
 | `/deliveries` | `/wysylki` | Retained delivery outcomes and an explicitly confirmed resend. |
+| `/dashboard` | `/panel` | Open your private user dashboard, profile, settings and connection statistics. |
 | `/help` | `/pomoc` | All commands and examples in your chosen language. |
 | `/privacy` | `/prywatnosc` | Privacy and retention information. |
 | `/disconnect` | `/odlacz` | Remove pairing and stop capture; `/stop` is the same unlink action. |

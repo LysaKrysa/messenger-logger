@@ -22,6 +22,7 @@ from dashboard.tests.keyboard_browser_smoke import verify as verify_keyboard
 from dashboard.tests.layout_browser_smoke import verify as verify_layout
 from dashboard.tests.usage_browser_smoke import seed as seed_usage, verify as verify_usage
 from dashboard.tests.delivery_browser_smoke import OfflineTelegram, verify as verify_deliveries
+from dashboard.tests.portal_browser_smoke import verify as verify_portal
 
 
 def main():
@@ -96,6 +97,8 @@ def main():
                 assert store.account(ident)["desired"] == 1
                 page.screenshot(path=str(output / "account.png"), full_page=True)
                 verify_deliveries(page, origin, account_url, store, app.extensions["deliveries"], telegram, output)
+                verify_portal(browser, page, origin, store, app, telegram, output)
+                page.goto(account_url)
                 page.get_by_role("link", name="All accounts", exact=True).click()
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.screenshot(path=str(output / "mobile.png"), full_page=True)

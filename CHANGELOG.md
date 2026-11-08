@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — private user profiles and dashboards
+
+- Add bilingual mobile user overview, settings, profile, conversation filters
+  and delivery-history pages on the existing HTTPS server.
+- Authenticate through `/panel` / `/dashboard` and an owner-confirmed, code-matched
+  Telegram sign-in. Use single-use links and an independent HttpOnly session;
+  keep user sessions out of administrator authentication and account provisioning.
+- Let owners change their display name/language, forwarding/media/view-once
+  settings, quiet mode and capture state, with account-bound mutations and
+  original-account-only reconnects. Administrators can revoke user sign-ins.
+- Report retained and current-run capture/media counts without message bodies or
+  archive access. Label stale snapshots and connection reports instead of
+  inferring that an offline worker is connected.
+- Preserve sessions across same-owner pause/restart/session refresh, revoke them
+  on pairing changes, and keep explicit resend/retention safeguards intact.
+
 ## Unreleased — conversation filters and delivery history
 
 - Add per-account default/include/exclude capture policies for chats and groups,

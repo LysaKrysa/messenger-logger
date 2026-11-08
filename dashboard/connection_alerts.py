@@ -72,8 +72,8 @@ class ConnectionAlerts:
             db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, json.dumps(state)))
         return bool(notify)
 
-    def issue(self, user_id):
-        _, token = self.invites.create_reconnect(user_id)
+    def issue(self, user_id, *, expected=None):
+        _, token = self.invites.create_reconnect(user_id, expected=expected)
         return self.origin + "/reconnect#" + token
 
     def request(self, user_id, language):
