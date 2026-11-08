@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import base64
 import hashlib
 import html
 import json
@@ -25,11 +26,12 @@ from zoneinfo import ZoneInfo
 from telegram_format import RichText, chunks, message_card, download_caption, event_card
 from telegram_topics import TopicRouter, TopicError, TelegramRejected
 from telegram_i18n import tr, LANGUAGES
+from conversation_filters import DEFAULT, valid as valid_filters, capture, forwarding
 
 # Cloud Bot API multipart uploads: https://core.telegram.org/bots/api#sending-files
 MAX_UPLOAD_BYTES = 50_000_000
 ERROR_RESPONSE_BYTES = 8192
-API_METHODS = frozenset({"getLocale", "getControls", "reportStatus", "getMe", "getChat", "getChatMember", "createForumTopic",
+API_METHODS = frozenset({"getLocale", "getControls", "reportStatus", "reportConversations", "getMe", "getChat", "getChatMember", "createForumTopic",
                          "editForumTopic", "sendMessage", "sendDocument"})
 
 
@@ -143,6 +145,10 @@ class TelegramRelay:
         self.quiet_until = 0
         self.quiet_windows = []
         self.mode_since = 0
+        self.filters = DEFAULT
+        self.filters_ready = False
+        self.catalog_after = ""
+        self.delivery_context = {}
         if self.enabled:
             self.token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
             self.chat = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -203,7 +209,7 @@ class TelegramRelay:
             if kind == "message":
                 # A delayed capture may fill an earlier deletion tombstone.
                 self.media_updated(summary["thread_id"], summary["message_id"])
-            if self.mode == "all" and kind != "message":
+            if self.forward_mode(summary["thread_id"]) == "all" and kind != "message":
                 try:
                     self.items.put_nowait(("summary", dict(summary)))
                 except queue.Full:
@@ -218,10 +224,25 @@ class TelegramRelay:
             self._queue_deleted(tid, mid)
 
     def _eligible(self, snapshot):
+        tid = snapshot.get("thread_id", self.delivery_context.get("thread", ""))
+        mode = self.forward_mode(tid)
+        if mode == "off":
+            return False
         if snapshot["deleted"]:
             return snapshot["deleted_run_id"] == self.store.run_id
-        once = self.view_once and any(item.get("viewOnce") for item in snapshot["attachments"])
-        return snapshot["run_id"] == self.store.run_id and (once or self.mode == "all" and snapshot["captured_at"] >= self.mode_since)
+        rule = self.filters["rules"].get(tid, {})
+        once = rule.get("forward", "inherit") == "inherit" and self.view_once and any(item.get("viewOnce") for item in snapshot["attachments"])
+        since = max(self.mode_since if rule.get("forward", "inherit") == "inherit" else 0, rule.get("since", 0))
+        return snapshot["run_id"] == self.store.run_id and (once or mode == "all" and snapshot["captured_at"] >= since)
+
+    def capture_allowed(self, tid):
+        self.refresh_controls()
+        if self.enabled and getattr(self, "gateway", "") and not self.filters_ready:
+            return False
+        return capture(self.filters, tid)
+
+    def forward_mode(self, tid):
+        return forwarding(self.filters, tid, self.mode)
 
     def refresh_controls(self, *, force=False):
         if not self.enabled or not getattr(self, "gateway", ""):
@@ -234,6 +255,9 @@ class TelegramRelay:
                 value = self._api("getControls", {})
                 if not isinstance(value, dict):
                     return
+                if valid_filters(value.get("filters")):
+                    self.filters = value["filters"]
+                    self.filters_ready = True
                 if isinstance(value.get("language"), str) and value["language"] in LANGUAGES:
                     self.language = value["language"]
                 if isinstance(value.get("mode"), str) and value["mode"] in {"deleted", "all"}:
@@ -263,6 +287,16 @@ class TelegramRelay:
         except (ValueError, TelegramAPIRejected, TelegramRequestError):
             pass
 
+    def report_conversations(self):
+        if not self.enabled or not getattr(self, "gateway", ""):
+            return
+        values = self.store.conversation_catalog(self.catalog_after)
+        try:
+            self._api("reportConversations", {"revision": int(os.environ.get("LOGGER_ACCOUNT_REVISION", "0")), "conversations": values})
+            self.catalog_after = values[-1]["id"] if len(values) == 50 else ""
+        except (ValueError, TelegramAPIRejected, TelegramRequestError):
+            pass
+
     def _muted(self, observed=None):
         now = time.time()
         return self.quiet_until > now or observed is not None and any(start <= observed < end for start, end in self.quiet_windows)
@@ -272,8 +306,8 @@ class TelegramRelay:
         if self.store.claim_telegram(tid, mid, part):
             self.store.finish_telegram(tid, mid, part, "skipped")
 
-    def _post(self, method, body, content_type="application/json", *, length=None):
-        internal = method in {"getLocale", "getControls", "reportStatus"}
+    def _post(self, method, body, content_type="application/json", *, length=None, delivery=None):
+        internal = method in {"getLocale", "getControls", "reportStatus", "reportConversations"}
         if not internal:
             if self.stopping.wait(max(0.0, self.next_send - time.monotonic())):
                 raise InterruptedError
@@ -281,6 +315,8 @@ class TelegramRelay:
         headers = {"Content-Type": content_type}
         if self.gateway:
             headers["Authorization"] = "Bearer " + self.account_key
+            if delivery is not None:
+                headers["X-Logger-Context"] = base64.urlsafe_b64encode(json.dumps(delivery, ensure_ascii=True).encode()).decode()
         if length is not None:
             headers["Content-Length"] = str(length)
         url = self.gateway.rstrip("/") + "/telegram/" + method if self.gateway else "https://api.telegram.org/bot" + self.token + "/" + method
@@ -372,6 +408,7 @@ class TelegramRelay:
     def _text(self, text, *, topic_id=None, route=None):
         rich = text if isinstance(text, RichText) else RichText().add(text)
         for part, entities in rich.pages():
+            delivery = dict(self.delivery_context, group=secrets.token_hex(16))
             if self.stopping.is_set():
                 raise InterruptedError
             payload = {
@@ -381,7 +418,7 @@ class TelegramRelay:
             def send(current_topic):
                 if current_topic is not None:
                     payload["message_thread_id"] = current_topic
-                return self._post("sendMessage", json.dumps(payload).encode())
+                return self._post("sendMessage", json.dumps(payload).encode(), delivery=delivery)
             self._send_in_topic(send, topic_id=topic_id, route=route)
 
     def _attempt(self, tid, mid, part, action):
@@ -438,6 +475,7 @@ class TelegramRelay:
             raise ValueError("Use a downloadable transcript for long captions.")
         caption_entities = [entity for entity in rich.entities if entity["type"] not in {"blockquote", "expandable_blockquote"}]
         boundary = "messenger-" + secrets.token_hex(16)
+        delivery = dict(self.delivery_context, group=secrets.token_hex(16))
         suffix = ("\r\n--" + boundary + "--\r\n").encode()
         def send(current_topic):
             # Only a definite missing-topic rejection permits rewinding and retrying.
@@ -458,7 +496,7 @@ class TelegramRelay:
                     yield block
                 yield suffix
             return self._post("sendDocument", body(), "multipart/form-data; boundary=" + boundary,
-                              length=len(prefix) + size + len(suffix))
+                              length=len(prefix) + size + len(suffix), delivery=delivery)
         return self._send_in_topic(send, topic_id=topic_id, route=route)
 
     def _document(self, media, caption, *, topic_id=None, route=None):
@@ -503,6 +541,8 @@ class TelegramRelay:
     def _deleted(self, tid, mid, observed=None):
         language = self._language()
         snapshot = self.store.relay_snapshot(tid, mid)
+        if snapshot:
+            snapshot["thread_id"] = tid
         if not snapshot or not self._eligible(snapshot):
             return
         if self._muted(observed):
@@ -515,6 +555,9 @@ class TelegramRelay:
             snapshot = self.store.relay_snapshot(tid, mid)
             if not snapshot or not self._eligible(snapshot):
                 return
+        self.delivery_context = {"thread": tid, "name": "" if snapshot.get("conversation_kind") else ''.join(c if c.isprintable() else ' ' for c in snapshot["conversation"])[:120],
+                                 "kind": "deleted" if snapshot["deleted"] else "view_once" if any(item.get("viewOnce") for item in snapshot["attachments"]) else "message",
+                                 "expires": (snapshot.get("captured_at") or time.time()) + (self.store.retention_seconds or 259200)}
         route = self._route(tid, "" if snapshot.get("conversation_kind") else snapshot["conversation"])
         notice = dict(snapshot)
         notice["attachments"] = [{key: value for key, value in item.items() if key not in {"url", "previewUrl", "localPath"}}
@@ -536,11 +579,16 @@ class TelegramRelay:
                     self._deleted(*item)
                 else:
                     self.refresh_controls(force=True)
-                    if self.mode != "all" or self._muted(item.get("received_at")) or item.get("received_at", time.time()) < self.mode_since:
+                    rule = self.filters["rules"].get(item["thread_id"], {})
+                    since = max(self.mode_since if rule.get("forward", "inherit") == "inherit" else 0, rule.get("since", 0))
+                    if self.forward_mode(item["thread_id"]) != "all" or self._muted(item.get("received_at")) or item.get("received_at", time.time()) < since:
                         continue
+                    event = item.get("telegram")
+                    name = "" if isinstance(event, dict) and event.get("conversation_kind") else ''.join(c if c.isprintable() else ' ' for c in item["thread"])[:120]
+                    self.delivery_context = {"thread": item["thread_id"], "name": name, "kind": item["type"],
+                                             "expires": item.get("expires_at", time.time() + 259200)}
                     plain = html.unescape(re.sub(r"<[^>]+>", "", item["body"]))
                     language = self._language()
-                    event = item.get("telegram")
                     route = self._route(item["thread_id"], "" if isinstance(event, dict) and event.get("conversation_kind") else item["thread"])
                     self._text(event_card(item["thread"], plain, item["type"], language, event=event), route=route)
             except TopicError as exc:

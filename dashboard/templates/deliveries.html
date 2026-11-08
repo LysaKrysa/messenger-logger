@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Delivery history · {{ account.name }}{% endblock %}
+{% block breadcrumb %}Delivery history{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('account',ident=account.id) }}">{{ icon('back') }}{{ account.name }}</a>
+<div class="page-heading"><div><h1>Delivery history</h1><p class="muted">Telegram notification attempts for {{ account.name }}. The owner can open /deliveries or /wysylki in Telegram.</p></div><a class="button secondary" href="{{ url_for('conversations',ident=account.id) }}">Conversation filters</a></div>
+{% if outcome %}<div class="notice {{ 'warning' if outcome != 'sent' else '' }}" role="status">Resend result: {{ {'sent':'Sent','failed':'Failed','uncertain':'Uncertain — it may have arrived'}[outcome] }}. No automatic retry.</div>{% endif %}
+<section class="panel"><h2>Read the result before resending</h2><p class="field-note">Sent: Telegram confirmed acceptance. Failed: the request was rejected or could not be sent. Uncertain: no reliable result; the notification may have arrived. Resending can create a duplicate. Filtered and quiet notifications are skipped before any delivery attempt and do not appear here.</p><p class="muted">History and encrypted resend content expire within 72 hours of original capture. Storage limits can make resends unavailable sooner. Telegram copies remain.</p></section>
+<div class="record-list">
+{% for item in deliveries %}
+<article class="record"><div class="record-heading"><div><h2>{{ item.name or ('Conversation ' ~ item.thread_id if item.thread_id else 'Conversation unavailable') }}</h2><p class="field-note">{{ item.created|eventdate }} · {{ {'message':'Message','deleted':'Deleted message','edit':'Edit','reaction':'Reaction','view_once':'View-once content','notification':'Notification'}[item.kind] }}</p></div><span class="status {{ 'online' if item.outcome == 'sent' else 'error' if item.outcome == 'failed' else 'warning' }}">{{ {'sent':'Sent','failed':'Failed','uncertain':'Uncertain','sending':'Sending'}[item.outcome] }}</span></div>
+<div class="record-footer"><div><p class="muted">{{ 'Explicit resend' if item.retry_of else 'Automatic notification' }}{% if item.attempts > 1 %} · Missing-topic repair attempted{% endif %}</p><p class="field-note">Expires {{ item.expires|eventdate }}{% if item.reason %} · {{ item.reason|replace('_',' ') }}{% endif %}</p></div>{% if item.available %}<a class="button secondary" href="{{ url_for('resend',ident=account.id,delivery=item.id) }}">Review resend</a>{% else %}<span class="muted">{{ 'Send in progress' if item.outcome == 'sending' else 'Resend unavailable under current filters' if item.cache_reason == 'ready' else 'Resend cache limit reached' if item.cache_reason == 'quota' else 'Resend content unavailable' }}</span>{% endif %}</div>
+</article>
+{% else %}<div class="empty-state"><h2>No retained delivery attempts</h2><p>Attempts appear when an eligible notification is sent. Local capture can continue without Telegram forwarding.</p></div>{% endfor %}
+</div>
+<nav class="pagination" aria-label="Delivery pages">{% if offset %}<a class="button secondary" href="{{ url_for('delivery_history',ident=account.id,offset=offset-20) }}">Previous</a>{% endif %}<a class="button secondary" href="{{ url_for('delivery_history',ident=account.id,offset=offset) }}">Refresh</a>{% if deliveries|length == 20 and offset < 4980 %}<a class="button secondary" href="{{ url_for('delivery_history',ident=account.id,offset=offset+20) }}">Next</a>{% endif %}</nav>
+{% endblock %}

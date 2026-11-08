@@ -144,6 +144,8 @@ TEXT["en"].update({
         "/quiet 1h — skip Telegram notifications for an hour\n"
         "/quiet off — end quiet mode\n"
         "/settings — your current settings\n"
+        "/chats — conversation capture and forwarding filters\n"
+        "/deliveries — delivery history and confirmed resends\n"
         "/en — English · /pl — Polish\n"
         "/privacy — privacy information\n"
         "/disconnect — unlink Telegram and stop capture\n"
@@ -194,6 +196,8 @@ TEXT["pl"].update({
         "/cisza 1g — pomijaj powiadomienia Telegrama przez godzinę\n"
         "/cisza wylacz — zakończ wyciszenie\n"
         "/ustawienia — Twoje aktualne ustawienia\n"
+        "/rozmowy — filtry zapisu i przesyłania rozmów\n"
+        "/wysylki — historia wysyłek i potwierdzone ponowienie\n"
         "/en — język angielski · /pl — język polski\n"
         "/prywatnosc — informacje o prywatności\n"
         "/odlacz — odłącz Telegram i zatrzymaj zapis\n"
@@ -203,6 +207,50 @@ TEXT["pl"].update({
         "Czas wyciszenia: 5m, 1g, 24g (maksymalnie doba). Wyciszenie zachowuje zapis lokalny i pomija powiadomienia bez późniejszej kolejki. "
         "Wznowienie nie pobiera pominiętej historii. Powiadomienia o jednorazowych multimediach zależą od osobnego ustawienia administratora. "
         "Treść rozmów zachowuje oryginalny język. Nie wysyłaj tutaj haseł ani ciasteczek."),
+})
+
+
+TEXT["en"].update({
+    "chats_title": "Your conversations", "chats_note": "Capture and Telegram forwarding are separate. Changes apply to new events. Exclusion stops capture and downloads; forwarding off keeps local capture. Existing local content expires normally.",
+    "capture_default": "Default capture", "default_all": "All except excluded", "default_include": "Included only",
+    "chats_empty": "No conversations reported yet. Keep Messenger connected and wait for a fresh chat event; past messages are not imported.",
+    "chat_fallback": "Conversation {value}", "unknown_chat": "Conversation unavailable",
+    "capture_on": "Capture on", "capture_off": "Excluded", "capture_setting": "Capture setting", "forward_setting": "Telegram forwarding",
+    "chat_controls": "The first three buttons control capture. The next four control Telegram forwarding. Exclusion always prevents forwarding. Default forwarding follows your account mode; an explicit deleted-only rule waits for deletion, including view-once content.",
+    "inherit": "Default capture", "include": "Include capture", "exclude": "Exclude capture",
+    "forward_inherit": "Default forwarding", "forward_all": "Forward all", "forward_deleted": "Deleted only", "forward_off": "Forwarding off",
+    "page_previous": "Previous", "page_next": "Next", "refresh": "Refresh", "back_chats": "Back to conversations", "back_deliveries": "Back to history",
+    "deliveries_title": "Your Telegram deliveries", "deliveries_note": "Sent means Telegram confirmed acceptance. Failed means rejected or not sent. Uncertain means delivery could not be confirmed; it may already have arrived. No automatic resend. Records and encrypted resend content expire within 72 hours of capture; cache limits may make content unavailable sooner. Quiet or filtered events are not attempted and do not appear here.",
+    "deliveries_empty": "No retained delivery attempts.", "delivery_details": "Details / resend",
+    "delivery_sent": "Sent", "delivery_failed": "Failed", "delivery_uncertain": "Uncertain", "delivery_sending": "Sending",
+    "kind_message": "Message", "kind_deleted": "Deleted message", "kind_view_once": "View-once content", "kind_edit": "Edit", "kind_reaction": "Reaction", "kind_notification": "Notification",
+    "resend_warning": "Resending may create a duplicate, especially if this notification is already sent or has an uncertain result. This sends the retained original only to your paired private Telegram chat. Current conversation filters still apply; quiet mode is bypassed for this explicit request.",
+    "resend_expiry": "Content expires: {value}. This confirmation is single use and valid for up to 10 minutes.",
+    "resend_confirm": "Confirm resend · may duplicate", "resend_unavailable": "Resend unavailable: content expired, cache limit reached, a send is in progress, or current conversation filters block it.",
+    "resend_sending": "Resending once…", "resend_result": "Resend result: {value}. No automatic retry.",
+    "menu_denied": "These controls belong to the paired account owner in their private bot chat.",
+    "menu_unavailable": "Unavailable, expired, already used, or rate limited. Open the command again and check your current settings.", "menu_updated": "Updated",
+})
+TEXT["pl"].update({
+    "chats_title": "Twoje rozmowy", "chats_note": "Zapis i przesyłanie do Telegrama są niezależne. Zmiany dotyczą nowych zdarzeń. Wykluczenie zatrzymuje zapis i pobieranie; wyłączenie przesyłania zachowuje zapis lokalny. Wcześniejsze dane wygasają jak dotychczas.",
+    "capture_default": "Domyślny zapis", "default_all": "Wszystkie poza wykluczonymi", "default_include": "Tylko wybrane",
+    "chats_empty": "Brak zgłoszonych rozmów. Pozostaw Messengera połączonego i poczekaj na nowe zdarzenie. Dawne wiadomości nie są pobierane.",
+    "chat_fallback": "Rozmowa {value}", "unknown_chat": "Rozmowa niedostępna",
+    "capture_on": "Zapis włączony", "capture_off": "Wykluczona", "capture_setting": "Ustawienie zapisu", "forward_setting": "Przesyłanie do Telegrama",
+    "chat_controls": "Pierwsze trzy przyciski sterują zapisem. Kolejne cztery sterują przesyłaniem do Telegrama. Wykluczenie zawsze blokuje przesyłanie. Domyślne przesyłanie używa trybu konta. Osobna reguła tylko usuniętych czeka na usunięcie, także dla treści jednorazowych.",
+    "inherit": "Domyślny zapis", "include": "Uwzględnij w zapisie", "exclude": "Wyklucz z zapisu",
+    "forward_inherit": "Domyślne przesyłanie", "forward_all": "Przesyłaj wszystko", "forward_deleted": "Tylko usunięte", "forward_off": "Przesyłanie wyłączone",
+    "page_previous": "Poprzednie", "page_next": "Następne", "refresh": "Odśwież", "back_chats": "Wróć do rozmów", "back_deliveries": "Wróć do historii",
+    "deliveries_title": "Twoje wysyłki do Telegrama", "deliveries_note": "Wysłano oznacza potwierdzenie przyjęcia przez Telegram. Błąd oznacza odrzucenie lub brak wysyłki. Niepewny wynik oznacza brak potwierdzenia; wiadomość mogła już dotrzeć. Bez automatycznego ponawiania. Historia i zaszyfrowana treść do ponowienia wygasają do 72 godzin od zapisu. Limity pamięci mogą wcześniej uniemożliwić ponowienie. Zdarzenia wyciszone i odfiltrowane nie są wysyłane i nie pojawiają się tutaj.",
+    "deliveries_empty": "Brak zachowanych prób wysyłki.", "delivery_details": "Szczegóły / ponów",
+    "delivery_sent": "Wysłano", "delivery_failed": "Błąd", "delivery_uncertain": "Niepewny wynik", "delivery_sending": "Wysyłanie",
+    "kind_message": "Wiadomość", "kind_deleted": "Usunięta wiadomość", "kind_view_once": "Treść jednorazowa", "kind_edit": "Edycja", "kind_reaction": "Reakcja", "kind_notification": "Powiadomienie",
+    "resend_warning": "Ponowienie może utworzyć duplikat, zwłaszcza gdy wysyłka była udana lub ma niepewny wynik. Zachowana oryginalna treść trafi tylko do Twojego połączonego prywatnego czatu Telegrama. Obecne filtry rozmów nadal obowiązują. To świadome żądanie pomija wyciszenie.",
+    "resend_expiry": "Treść wygasa: {value}. Potwierdzenie jest jednorazowe i ważne maksymalnie 10 minut.",
+    "resend_confirm": "Potwierdź ponowienie · możliwy duplikat", "resend_unavailable": "Ponowienie niedostępne: treść wygasła, przekroczono limit pamięci, trwa wysyłka lub blokują ją obecne filtry rozmów.",
+    "resend_sending": "Jednorazowe ponawianie…", "resend_result": "Wynik ponowienia: {value}. Bez automatycznego powtarzania.",
+    "menu_denied": "Te ustawienia są dostępne tylko właścicielowi połączonego konta w jego prywatnym czacie z botem.",
+    "menu_unavailable": "Niedostępne, wygasłe, wykorzystane lub przekroczono limit. Otwórz polecenie ponownie i sprawdź ustawienia.", "menu_updated": "Zaktualizowano",
 })
 
 

@@ -21,6 +21,7 @@ from dashboard.tests.setup_browser_smoke import OfflineBrowser, verify as verify
 from dashboard.tests.keyboard_browser_smoke import verify as verify_keyboard
 from dashboard.tests.layout_browser_smoke import verify as verify_layout
 from dashboard.tests.usage_browser_smoke import seed as seed_usage, verify as verify_usage
+from dashboard.tests.delivery_browser_smoke import OfflineTelegram, verify as verify_deliveries
 
 
 def main():
@@ -50,7 +51,8 @@ def main():
             port = sock.getsockname()[1]
         origin = "https://127.0.0.1:" + str(port)
         offline = OfflineBrowser()
-        app = create_app(store, origin=origin, status_root=status, browser_client=offline)
+        telegram = OfflineTelegram()
+        app = create_app(store, origin=origin, status_root=status, browser_client=offline, delivery_api=telegram)
         @app.after_request
         def simulate_lost_handoff_response(response):
             if request.path == "/setup/api/finish" and offline.lose_finish_response and response.status_code == 200:
@@ -93,6 +95,7 @@ def main():
                 page.get_by_role("button", name="Start", exact=True).click()
                 assert store.account(ident)["desired"] == 1
                 page.screenshot(path=str(output / "account.png"), full_page=True)
+                verify_deliveries(page, origin, account_url, store, app.extensions["deliveries"], telegram, output)
                 page.get_by_role("link", name="All accounts", exact=True).click()
                 page.set_viewport_size({"width": 390, "height": 844})
                 page.screenshot(path=str(output / "mobile.png"), full_page=True)

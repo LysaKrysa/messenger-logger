@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY install_bridge.py ./
 COPY --from=native /build/messenger-bridge /build/messenger-bridge
 RUN python install_bridge.py /usr/local/bin/messenger-bridge /build/messenger-bridge && rm -rf /build
-COPY bridge_rpc.py event_store.py logger.py view_messages.py media_saver.py telegram_relay.py telegram_format.py telegram_i18n.py telegram_topics.py identities.py contact_names.py retention.py check_telegram_topics.py ./
+COPY bridge_rpc.py event_store.py logger.py view_messages.py media_saver.py telegram_relay.py telegram_format.py telegram_i18n.py conversation_filters.py telegram_topics.py identities.py contact_names.py retention.py check_telegram_topics.py ./
 COPY LICENSE NOTICE THIRD_PARTY.md /usr/share/licenses/messenger-logger/
 COPY LICENSES/ /usr/share/licenses/messenger-logger/dependencies/
 ENV BRIDGE_BIN=/usr/local/bin/messenger-bridge DATA_DIR=/data LOGGER_TIMEZONE=Europe/Warsaw

@@ -65,6 +65,9 @@ class Store:
                     );
                     CREATE TABLE IF NOT EXISTS limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires REAL NOT NULL);
                 ''')
+                db.execute("BEGIN IMMEDIATE")
+                if "pair_epoch" not in {row[1] for row in db.execute("PRAGMA table_info(accounts)")}:
+                    db.execute("ALTER TABLE accounts ADD COLUMN pair_epoch INTEGER NOT NULL DEFAULT 1")
             os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -141,7 +144,14 @@ class Store:
     def controls(self, row):
         with self.db() as db:
             value = self._controls(db, row["id"])
-        return dict(value, mode=row["mode"], language=self.telegram_language(row["chat_id"]))
+        return dict(value, mode=row["mode"], language=self.telegram_language(row["chat_id"]), filters=self.filters(row["id"]))
+
+    def filters(self, ident):
+        from conversation_filters import DEFAULT, valid
+        value = self.setting("filters:" + account_id(ident), DEFAULT)
+        if not valid(value):
+            raise DashboardError("Conversation filter settings are invalid.")
+        return value
 
     def user_account(self, user_id):
         with self.db() as db:
@@ -378,11 +388,11 @@ class Store:
             if action == "approve":
                 if not row["pending_chat"]:
                     raise DashboardError("There is no pending Telegram pairing.")
-                db.execute("UPDATE accounts SET chat_id=pending_chat,pending_chat=NULL,pending_name=NULL,revision=revision+1 WHERE id=?", (ident,))
+                db.execute("UPDATE accounts SET chat_id=pending_chat,pending_chat=NULL,pending_name=NULL,revision=revision+1,pair_epoch=pair_epoch+1 WHERE id=?", (ident,))
                 db.execute("DELETE FROM settings WHERE key IN (?,?,?)", ("controls:" + ident, "worker_status:" + ident, "delivery_status:" + ident))
                 db.execute("DELETE FROM settings WHERE key=?", ("connection_monitor:" + ident,))
             elif action == "disconnect":
-                db.execute("UPDATE accounts SET desired=0,chat_id=NULL,pending_chat=NULL,pending_name=NULL,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=?", (ident,))
+                db.execute("UPDATE accounts SET desired=0,chat_id=NULL,pending_chat=NULL,pending_name=NULL,revision=revision+1,auth_epoch=auth_epoch+1,pair_epoch=pair_epoch+1 WHERE id=?", (ident,))
                 db.execute("DELETE FROM invites WHERE account_id=?", (ident,))
             elif action in {"start", "restart"}:
                 if not row["cookies"] or not row["chat_id"]:
@@ -401,6 +411,11 @@ class Store:
                 db.execute("DELETE FROM accounts WHERE id=?", (ident,))
             else:
                 raise DashboardError("Unknown account action.")
+            if action in {"approve", "disconnect", "remove"}:
+                db.execute("DELETE FROM settings WHERE key=?", ("filters:" + ident,))
+                for table in ("conversation_catalog", "delivery_history", "resend_intents"):
+                    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+                        db.execute("DELETE FROM " + table + " WHERE account_id=?", (ident,))
 
     def worker_key(self, row):
         return row["id"] + "." + self.secret("worker:" + row["id"] + ":" + str(row["auth_epoch"]))

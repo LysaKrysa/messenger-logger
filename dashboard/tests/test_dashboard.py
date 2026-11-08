@@ -570,6 +570,7 @@ class GatewayIntegrationTests(Base):
         from email.parser import BytesParser
         from email.policy import default
         ident = self.paired()
+        self.store.action(ident, "options", view_once=True)
         row = self.store.account(ident, private=True)
         api = FakeAPI()
         server = make_server("127.0.0.1", 0, broker_app(self.store, api), threaded=True)
@@ -579,7 +580,7 @@ class GatewayIntegrationTests(Base):
         class Download:
             def call(self, method, parameters, **options):
                 return {"data": base64.b64encode(image).decode()}
-        archive = EventStore(self.root / "view-once-archive", own_id="111222333", started_at=1000, run_id="view-once-test")
+        archive = EventStore(self.root / "view-once-archive", own_id="111222333", started_at=self.now - 2, run_id="view-once-test", clock=lambda: self.now)
         relay = saver = None
         try:
             env = {"TELEGRAM_ENABLED": "true", "TELEGRAM_TOPICS": "false", "TELEGRAM_MODE": "deleted",
@@ -592,8 +593,8 @@ class GatewayIntegrationTests(Base):
             relay.interval = 0
             saver = MediaSaver(Download(), archive, reports.append, threading.Event(), on_update=relay.media_updated)
             saver.start()
-            event = {"type": "e2eeMessage", "timestamp": 1001000, "data": {
-                "id": "synthetic-once", "threadId": 42, "senderId": 222, "timestampMs": 1001000,
+            event = {"type": "e2eeMessage", "timestamp": (self.now - 1) * 1000, "data": {
+                "id": "synthetic-once", "threadId": 42, "senderId": 222, "timestampMs": (self.now - 1) * 1000,
                 "attachments": [{"type": "image", "viewOnce": True, "viewMode": "once", "mimeType": "image/jpeg",
                     "fileSize": len(image), "directPath": "/synthetic/view-once", "mediaKey": base64.b64encode(b"K" * 32).decode(),
                     "mediaSha256": base64.b64encode(hashlib.sha256(image).digest()).decode()}]}}

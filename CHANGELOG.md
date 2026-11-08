@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — conversation filters and delivery history
+
+- Add per-account default/include/exclude capture policies for chats and groups,
+  with independent inherit/all/deleted/off forwarding rules. Gate local capture,
+  queued downloads and gateway forwarding; report only conversation IDs/names.
+- Add admin account pages and owner-checked `/chats` / `/rozmowy` and
+  `/deliveries` / `/wysylki` menus with complete Polish/English copy.
+- Persist confirmed sent, definite failed and uncertain notification outcomes.
+  Keep resend payloads in a bounded, account-keyed encrypted cache. Resends require
+  a single-use acknowledgement, retain original expiry, preserve exact document
+  bytes, stay in the original owner's destination and never retry uncertainty.
+- Separate pairing generation from worker restarts, retaining owner history
+  through pause/reconnect while invalidating it on unlink/reassignment/removal.
+  Expire history/cache independently of workers within the existing 72-hour window.
+
 ## Unreleased — offline alerts and fixed-account reconnects
 
 - Monitor worker connection reports in the shared bot and send debounced,

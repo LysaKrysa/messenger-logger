@@ -79,6 +79,7 @@ class EventStore:
         self.own_id = identifier(own_id)
         self.clock = clock or time.time
         self.retention_seconds = retention_seconds
+        self.capture_allowed = lambda tid: True
         self.started_at = started_at
         self.cutoff_ms = math.ceil(started_at * 1000) if started_at is not None else None
         self.run_id = run_id or (uuid.uuid4().hex if started_at is not None else "")
@@ -499,6 +500,20 @@ class EventStore:
                 return None
             if event.get("type") not in EVENT_NAMES or not self._future_event(event):
                 return None
+            data = event.get("data")
+            if not isinstance(data, dict):
+                return None
+            mid = identifier(data.get("id") if EVENT_NAMES[event["type"]] == "message" else data.get("messageId"))
+            tid = identifier(data.get("threadId") or data.get("chatJid") or data.get("chat")) or self._resolve_thread(mid) or "unresolved"
+            # Retain routing metadata so an excluded conversation can still be
+            # selected in settings; never save its message content or media.
+            with self.db:
+                self.db.execute("INSERT OR IGNORE INTO threads(id,last_seen) VALUES (?,?)", (tid, received))
+                title = text_value(data.get("threadName"))
+                if title:
+                    self.db.execute("UPDATE threads SET name=? WHERE id=?", (title, tid))
+            if not self.capture_allowed(tid):
+                return None
             if not self._incoming(event, received):
                 return None
             with self.db:
@@ -549,6 +564,8 @@ class EventStore:
                 self.db.execute("UPDATE contacts SET last_seen=? WHERE id=?", (received, value["sender_id"]))
                 summary = {"type": value["type"], "thread": self._thread_name(value["thread_id"]), "body": body, "received_at": received,
                            "thread_id": value["thread_id"], "message_id": value["message_id"], "sender_id": value["sender_id"]}
+                born = self.db.execute("SELECT captured_at FROM messages WHERE thread_id=? AND message_id=?", (value["thread_id"], value["message_id"])).fetchone()
+                summary["expires_at"] = min(received, born[0] if born and born[0] else received) + (self.retention_seconds or 259200)
                 if value["type"] in {"edit", "reaction"}:
                     summary["telegram"] = self._telegram_event(value)
             self._export_pending()
@@ -603,6 +620,7 @@ class EventStore:
             if row is None:
                 return None
             item = dict(zip(columns, row))
+            item["thread_id"] = thread_id
             if self.own_id and (not item["sender_id"] or item["sender_id"] == self.own_id):
                 return None
             if self.retention_seconds is not None:
@@ -630,6 +648,11 @@ class EventStore:
         with self.lock:
             row = self.db.execute("SELECT name,username FROM contacts WHERE id=?", (user_id,)).fetchone()
             return row is None or not display_label(row[0])
+
+    def conversation_catalog(self, after=""):
+        with self.lock:
+            ids = [row[0] for row in self.db.execute("SELECT id FROM threads WHERE id>? ORDER BY id LIMIT 50", (after,))]
+            return [{"id": tid, "name": "" if self._thread_kind(tid) else ''.join(c if c.isprintable() else ' ' for c in self._thread_name(tid))[:120]} for tid in ids]
 
     def claim_telegram(self, thread_id, message_id, part):
         # Claim before the network call: a timeout might still have delivered.

@@ -14,11 +14,12 @@ RECOVERY_SECONDS = 30
 
 
 class ConnectionAlerts:
-    def __init__(self, store, api, *, origin=None, close_browser=None):
+    def __init__(self, store, api, *, origin=None, close_browser=None, maintenance=None):
         self.store, self.api = store, api
         self.started = store.clock()
         self.invites = SetupInvites(store)
         self.close_browser = close_browser or self._close_browser
+        self.maintenance = maintenance or (lambda: None)
         self.origin = (origin or os.environ.get("DASHBOARD_ORIGIN", "https://localhost:8443")).rstrip("/")
         parsed = urlsplit(self.origin)
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment:
@@ -144,8 +145,9 @@ class ConnectionAlerts:
 
     def run(self, stop):
         while not stop.is_set():
-            try:
-                self.tick()
-            except Exception:
-                print("Connection monitoring unavailable; private details hidden.", flush=True)
+            for operation in (self.tick, self.maintenance):
+                try:
+                    operation()
+                except Exception:
+                    print("Connection monitoring or retention maintenance unavailable; private details hidden.", flush=True)
             stop.wait(5)

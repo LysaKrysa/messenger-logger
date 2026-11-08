@@ -36,6 +36,8 @@ dashboard manages a small shared workspace with one Telegram bot.
 | **One-time setup links** | Invite friends to connect through a temporary server browser and receive their Telegram invitation. List active links and disable them from the dashboard. |
 | **One shared bot** | Expiring Telegram invites, administrator approval, destination checks, and a private conversation topic map per person. |
 | **Offline alerts & reconnects** | Notify the paired owner and refresh only their original approved account through a one-time, Telegram-confirmed link. |
+| **Conversation filters** | Include or exclude individual chats and groups, with separate local capture and per-conversation Telegram forwarding preferences. |
+| **Delivery history** | Inspect confirmed, failed and uncertain notifications; explicitly confirm a resend while retained content is available. |
 
 > [!IMPORTANT]
 > This is an **unofficial, best-effort Messenger integration**, not a Meta product.
@@ -432,6 +434,13 @@ never captured, the view explicitly says it is unavailable.
 </details>
 
 ## Telegram forwarding
+
+Dashboard accounts have **Conversation filters** and **Delivery history** pages.
+Owners can use `/chats` / `/rozmowy` and `/deliveries` / `/wysylki` in their private
+bot chat. Filters separate capture from forwarding; a resend requires confirmation
+and may create a duplicate. History and encrypted resend content expire within
+72 hours of original capture. See [filters and delivery history](docs/TELEGRAM.md#conversation-filters)
+for scope, storage limits and upgrade steps.
 
 Telegram is optional and disabled by default. Create a bot with **@BotFather**,
 send `/start` to the bot, and obtain the intended destination chat ID.

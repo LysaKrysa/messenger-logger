@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Confirm resend · {{ account.name }}{% endblock %}
+{% block breadcrumb %}Confirm resend{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('delivery_history',ident=account.id) }}">{{ icon('back') }}Delivery history</a>
+<div class="page-heading"><div><h1>Review resend</h1><p class="muted">{{ account.name }} · {{ delivery.name or 'Conversation unavailable' }}</p></div></div>
+<section class="panel narrow"><h2>Original result: {{ {'sent':'Sent','failed':'Failed','uncertain':'Uncertain','sending':'Sending'}[delivery.outcome] }}</h2><p class="field-note">Attempted {{ delivery.created|eventdate }}. Content expires {{ delivery.expires|eventdate }}.</p>
+<div class="notice warning"><strong>This may create a duplicate.</strong><p>A notification with an uncertain result may already have arrived. A successful notification will be sent again. This action sends the retained original to this account’s current paired private Telegram chat ({{ account.chat_id }}).</p></div>
+<p class="muted">Current conversation filters still apply. This explicit request bypasses quiet mode. Content is sent once, with no automatic retry. Original retention deadlines remain unchanged.</p>
+{% if confirmation %}<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="confirmation" value="{{ confirmation }}"><label class="check"><input type="checkbox" name="acknowledge" value="yes" required><span>I understand this may create a duplicate and want to resend it.</span></label><p class="field-note">Single-use confirmation. Expires in up to 10 minutes.</p><div class="form-actions"><a class="button secondary" href="{{ url_for('delivery_history',ident=account.id) }}">Cancel</a><button class="button primary">Confirm resend</button></div></form>{% else %}<div class="notice">Resend content is unavailable, a send is in progress, or current conversation filters block it.</div>{% endif %}
+</section>
+{% endblock %}

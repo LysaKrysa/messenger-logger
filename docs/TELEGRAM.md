@@ -67,6 +67,8 @@ accepted regardless of the user's reply language.
 | `/quiet 1h` | `/cisza 1g` | Keep local capture running and skip Telegram notifications for one hour. |
 | `/quiet off` | `/cisza wylacz` | End quiet mode early. |
 | `/settings` | `/ustawienia` | Your language, capture state, forwarding mode, downloads and quiet-until time. |
+| `/chats` | `/rozmowy` | Include/exclude chats and groups and set forwarding independently. |
+| `/deliveries` | `/wysylki` | Retained delivery outcomes and an explicitly confirmed resend. |
 | `/help` | `/pomoc` | All commands and examples in your chosen language. |
 | `/privacy` | `/prywatnosc` | Privacy and retention information. |
 | `/disconnect` | `/odlacz` | Remove pairing and stop capture; `/stop` is the same unlink action. |
@@ -91,9 +93,112 @@ The administrator's separate view-once-alert option remains in effect.
 Status uses metadata-only worker reports, normally refreshed every five seconds
 after connection. Reports older than 90 seconds or belonging to an earlier
 worker revision are shown as unknown. Delivery health is the last observed
-automatic relay result: confirmed sent, rejected, unconfirmed, or no result.
+notification result, including explicit resends: confirmed sent, rejected, unconfirmed, or no result.
 A command reply is not used as proof that message forwarding is healthy. These
 reports contain no chat text, credentials, message IDs, media URLs or archives.
+
+## Conversation filters
+
+Open **Account → Conversation filters** in the administrator dashboard, or send
+`/chats` (English) or `/rozmowy` (Polish) as the paired owner. Button labels follow
+that person's saved language. Both typed command languages remain accepted.
+
+Choose a default policy, then adjust individual conversations:
+
+| Setting | Local capture | Telegram forwarding |
+| --- | --- | --- |
+| All except excluded | Admit new events unless explicitly excluded. | Follow the account mode or per-chat rule. |
+| Included only | Admit new events only in explicitly included chats/groups. | Only admitted conversations can forward. |
+| Exclude conversation | No new text, events, attachment metadata or downloads. | Off, regardless of its forwarding rule. |
+| Forwarding off | Continue capture if included. | Keep content local. |
+| Default forwarding | Capture policy unchanged. | Follow account mode and its view-once preference. |
+| Forward all | Capture policy unchanged. | All supported incoming chat events. |
+| Deleted only | Capture policy unchanged. | Wait for deletion, including view-once content. |
+
+The catalogue uses conversation IDs and names reported by the worker, not old
+message history. Both ordinary and encrypted chats/groups are selectable. Names
+depend on transport metadata; unnamed conversations use an ID. Excluded chats
+remain selectable through routing metadata without storing their content. The
+catalogue retains up to 5,000 conversations and allows 200 explicit rules per
+account. Use the page buttons to browse. Other owners cannot see or edit them.
+
+Settings apply to future events without restarting an upgraded worker. Reads
+are cached for up to one second. Capture is closed until the first policy read
+succeeds; a temporary later gateway failure retains the last known policy.
+The gateway checks forwarding again immediately before sending. Already running
+network operations may finish. Changes do not erase prior local captures, alter
+existing Telegram messages or replay skipped/history content.
+
+## Delivery history and explicit resends
+
+Open **Account → Delivery history**, or send `/deliveries` / `/wysylki`. These
+pages show message-forwarding attempts, including explicit resends, not command
+replies, offline alerts or download-button copies. Quiet and filtered events
+are skipped before a send attempt and are not delivery failures.
+
+| Outcome | Meaning |
+| --- | --- |
+| Sent | Telegram confirmed accepting the notification; this is not a read receipt. |
+| Failed | The API rejected it, or the resend was stopped locally before sending (for example changed filters or invalid payload). |
+| Uncertain | Timeout, server error or interrupted send: it may already have arrived. |
+| Sending | A claimed attempt is still in progress; a stale claim becomes uncertain after two minutes. |
+
+Select **Review resend** in the dashboard or **Details / resend** in Telegram.
+Read the duplicate warning and confirm explicitly. Confirmation is single use,
+pairing-bound and valid for up to ten minutes. At most three manual resend
+attempts per account per minute are allowed. Every resend creates a separate
+history attempt linked to the original, retaining both results. No uncertain
+send or resend is automatically replayed. The existing definite missing-topic
+repair remains bounded to one retry within its original attempt.
+
+A resend uses the retained original text/caption/document, the same account's
+paired private destination and its latest known conversation topic. It does not
+accept a destination, file URL or archive path from the user. Exact voice/file
+bytes and single-message deletion ZIPs stay intact. Successful document sends
+can reuse Telegram's file ID; rejected or uncertain uploads need retained bytes.
+The download button stays attached. Paused accounts can resend; explicit resends
+bypass quiet mode but still respect current conversation capture/forward filters.
+
+History and resend content expire at the original capture deadline, never later
+than 72 hours. A resend does not reset this clock. History is bounded to the
+latest 5,000 attempts per account. The bot's independent maintenance loop purges
+expired records and payloads approximately every 30 seconds, including while a
+worker is paused/offline. Pairing changes and account removal invalidate history,
+filters and confirmations immediately; orphan encrypted files are removed by
+maintenance. Same-owner pause, restart and session refresh preserve them.
+
+Payloads are authenticated and encrypted on disk, keyed by account and delivery;
+the dashboard database holds metadata, not notification bodies or media URLs.
+Default cache budgets are **100 MiB per account** and **500 MiB total** (encrypted
+size). If storage is unavailable/full, the original notification can still be
+sent, but history shows that resending is unavailable. These bounded budgets can
+be configured with `DASHBOARD_RESEND_CACHE_MB` and `DASHBOARD_RESEND_TOTAL_MB`
+(integer MiB, 1–2048) in `/etc/messenger-dashboard/service.env`; restart the web and
+bot services after changing them. Keep the total budget at least as large as
+the per-account budget. Existing Telegram copies are never deliberately deleted.
+
+### Upgrade an existing dashboard for filters and history
+
+From this release's extracted source directory:
+
+```bash
+sudo install --backup=numbered -m 644 \
+  conversation_filters.py event_store.py logger.py media_saver.py \
+  telegram_relay.py telegram_i18n.py /opt/messenger-dashboard/app/
+sudo install --backup=numbered -m 644 dashboard/*.py /opt/messenger-dashboard/app/dashboard/
+sudo install --backup=numbered -m 644 dashboard/templates/*.html /opt/messenger-dashboard/app/dashboard/templates/
+sudo install --backup=numbered -m 644 dashboard/static/* /opt/messenger-dashboard/app/dashboard/static/
+sudo systemctl restart messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
+sudo messenger-dashboard-admin restart-active
+```
+
+The schema migrates automatically without replacing the database or master key.
+The one-time worker restart loads the capture gates. Paused accounts stay paused;
+active accounts briefly reconnect and capture only future events. No native image
+rebuild is needed for installed dashboard workers because they mount this source.
+History starts with new attempts after this upgrade; older failures cannot be
+reconstructed or resent. The standalone logger does not provide these dashboard
+menus/history; its existing environment forwarding behavior is unchanged.
 
 ## Language per user
 
@@ -130,10 +235,12 @@ dashboard installation:
 
 ```bash
 sudo install --backup=numbered -m 644 \
-  event_store.py logger.py media_saver.py telegram_relay.py telegram_format.py telegram_i18n.py telegram_topics.py \
+  conversation_filters.py event_store.py logger.py media_saver.py telegram_relay.py telegram_format.py telegram_i18n.py telegram_topics.py \
   /opt/messenger-dashboard/app/
 sudo install --backup=numbered -m 644 dashboard/*.py \
   /opt/messenger-dashboard/app/dashboard/
+sudo install --backup=numbered -m 644 dashboard/templates/*.html /opt/messenger-dashboard/app/dashboard/templates/
+sudo install --backup=numbered -m 644 dashboard/static/* /opt/messenger-dashboard/app/dashboard/static/
 sudo systemctl restart messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
 sudo messenger-dashboard-admin restart-active
 ```
