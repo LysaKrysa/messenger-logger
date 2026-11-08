@@ -17,10 +17,11 @@ from .bot_commands import ALIASES, CONTROLS, handle_control
 from .connection_alerts import ConnectionAlerts
 from .deliveries import Deliveries
 from .history_commands import HistoryCommands, PREFIXES
+from .portal_auth import PortalLogins
 from telegram_i18n import tr
 
 METHODS = {
-    "getMe": set(), "getLocale": set(), "getControls": set(), "reportConversations": {"revision", "conversations"}, "reportStatus": {"revision", "connected", "last_event"}, "getChat": {"chat_id"},
+    "getMe": set(), "getLocale": set(), "getControls": set(), "reportStats": set(), "reportConversations": {"revision", "conversations"}, "reportStatus": {"revision", "connected", "last_event"}, "getChat": {"chat_id"},
     "getChatMember": {"chat_id", "user_id"},
     "createForumTopic": {"chat_id", "name", "icon_color"},
     "editForumTopic": {"chat_id", "message_thread_id", "name"},
@@ -111,6 +112,12 @@ class PairingReceiver:
         self.deliveries = Deliveries(store, api)
         self.history = HistoryCommands(store, api, self.deliveries)
         self.connection_alerts = ConnectionAlerts(store, api, origin=origin, maintenance=self.deliveries.cleanup)
+        self.portal = PortalLogins(store, api, self.connection_alerts.origin)
+        self.connection_alerts.maintenance = self.maintenance
+
+    def maintenance(self):
+        self.deliveries.cleanup()
+        self.portal.tick()
 
     def handle(self, update):
         ident = update.get("update_id")
@@ -120,7 +127,9 @@ class PairingReceiver:
         self.store.set_setting("bot_offset", ident)
         callback = update.get("callback_query")
         if isinstance(callback, dict):
-            if isinstance(callback.get("data"), str) and callback["data"].startswith(("rca.", "rcr.")):
+            if isinstance(callback.get("data"), str) and callback["data"].startswith(("pla.", "plr.")):
+                self.portal.callback(callback)
+            elif isinstance(callback.get("data"), str) and callback["data"].startswith(("rca.", "rcr.")):
                 self.connection_alerts.confirm(callback)
             elif isinstance(callback.get("data"), str) and callback["data"].startswith(PREFIXES):
                 self.history.callback(callback)
@@ -152,7 +161,9 @@ class PairingReceiver:
         if not command.startswith("/"):
             canonical = ""
         markup = None
-        if canonical == "reconnect":
+        if canonical == "dashboard" or canonical == "start" and parameter == "dashboard":
+            reply = self.portal.request(chat_id, language) if not parameter or canonical == "start" else tr(language, "command_usage")
+        elif canonical == "reconnect":
             reply = self.connection_alerts.request(chat_id, language) if not parameter else tr(language, "command_usage")
         elif canonical in CONTROLS:
             reply = handle_control(self.store, chat_id, canonical, parameter, language)
@@ -313,7 +324,7 @@ def create_app(store=None, api=None):
         account = store.authenticate_worker(authorization.removeprefix("Bearer ")) if authorization.startswith("Bearer ") else None
         if not account:
             return jsonify(ok=False, error_code=403, description="Gateway account is not authorized"), 403
-        bucket = "worker-control:" if method in {"getControls", "reportStatus", "reportConversations"} else "gateway:"
+        bucket = "worker-control:" if method in {"getControls", "reportStatus", "reportStats", "reportConversations"} else "gateway:"
         if not store.take_limit(bucket + account["id"], 180, 60):
             return jsonify(ok=False, error_code=429, description="Gateway account rate limit reached"), 429
         if method not in METHODS:
@@ -326,10 +337,13 @@ def create_app(store=None, api=None):
                     raise DashboardError("Conversation report is too large.")
                 deliveries.conversations.report(account, request.get_json(silent=True))
                 return jsonify(ok=True, result=True)
-            if method in {"getLocale", "getControls", "reportStatus"}:
+            if method in {"getLocale", "getControls", "reportStatus", "reportStats"}:
                 if request.content_length is None or request.content_length > 1024:
                     raise DashboardError("Locale requests must be empty JSON objects.")
                 params = request.get_json(silent=True)
+                if method == "reportStats":
+                    store.report_stats(account, params)
+                    return jsonify(ok=True, result=True)
                 if method == "reportStatus":
                     store.report_worker(account, params)
                     return jsonify(ok=True, result=True)

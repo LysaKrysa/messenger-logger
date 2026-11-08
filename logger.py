@@ -242,6 +242,7 @@ class LoggerRuntime:
             ready = health.get("connected") is True and (not encrypted or health.get("e2eeConnected") is True)
             self.relay.report_status(ready, self.last_event)
             self.relay.report_conversations()
+            self.relay.report_stats(health, self.started_at, self.messages_this_run, self.deleted_this_run, self.logged_this_run, encrypted)
             if ready:
                 disconnected_since = None
             elif disconnected_since is None:

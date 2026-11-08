@@ -144,7 +144,7 @@ class Store:
     def controls(self, row):
         with self.db() as db:
             value = self._controls(db, row["id"])
-        return dict(value, mode=row["mode"], language=self.telegram_language(row["chat_id"]), filters=self.filters(row["id"]))
+        return dict(value, mode=row["mode"], view_once=bool(row["view_once"]), language=self.telegram_language(row["chat_id"]), filters=self.filters(row["id"]))
 
     def filters(self, ident):
         from conversation_filters import DEFAULT, valid
@@ -158,12 +158,14 @@ class Store:
             row = db.execute("SELECT id FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
         return self.account(row[0]) if row else None
 
-    def user_control(self, user_id, command, value=None):
+    def user_control(self, user_id, command, value=None, *, expected=None):
         """Resolve ownership and apply one allowlisted command atomically."""
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT * FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
             if row is None:
+                return False
+            if expected is not None and any(row[key] != expected[key] for key in ("id", "pair_epoch", "chat_id", "facebook_id")):
                 return False
             ident, now = row["id"], self.clock()
             controls = self._controls(db, ident)
@@ -172,6 +174,15 @@ class Store:
                 if desired and not row["cookies"]:
                     return False
                 db.execute("UPDATE accounts SET desired=?,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=? AND desired<>?", (desired, ident, desired))
+            elif command == "preferences":
+                if (not isinstance(value, dict) or set(value) != {"mode", "media", "view_once"}
+                        or not isinstance(value["mode"], str) or value["mode"] not in {"all", "deleted"}
+                        or type(value["media"]) is not bool or type(value["view_once"]) is not bool):
+                    raise DashboardError("Invalid forwarding preferences.")
+                if row["mode"] != value["mode"]:
+                    controls["mode_since"] = now
+                controls["media"] = value["media"]
+                db.execute("UPDATE accounts SET mode=?,view_once=? WHERE id=?", (value["mode"], int(value["view_once"]), ident))
             elif command == "mode" and value in {"all", "deleted"}:
                 if row["mode"] != value:
                     controls["mode_since"] = now
@@ -219,6 +230,24 @@ class Store:
         if last_event and last_event < self.clock() - 259200:
             last_event = None
         self.set_setting(key, dict(value, last_event=last_event, updated=self.clock()))
+
+    def report_stats(self, row, value):
+        import math
+        counts = {"messages", "deletions", "attachments", "files", "media_bytes", "conversations", "run_messages", "run_deletions", "run_events"}
+        keys = counts | {"revision", "started_at", "regular_connected", "encrypted_connected"}
+        if (not isinstance(value, dict) or set(value) != keys or type(value["revision"]) is not int or value["revision"] != row["revision"]
+                or any(type(value[key]) is not int or not 0 <= value[key] < 2**53 for key in counts)
+                or value["deletions"] > value["messages"] or value["files"] > value["attachments"]
+                or type(value["regular_connected"]) is not bool or value["encrypted_connected"] is not None and type(value["encrypted_connected"]) is not bool
+                or type(value["started_at"]) not in {int, float} or not math.isfinite(value["started_at"]) or not 0 <= value["started_at"] <= self.clock() + 5):
+            raise DashboardError("Invalid capture statistics.")
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            current = db.execute("SELECT * FROM accounts WHERE id=?", (row["id"],)).fetchone()
+            if not current or not current["desired"] or any(current[key] != row[key] for key in ("pair_epoch", "chat_id", "facebook_id", "revision", "auth_epoch")):
+                raise DashboardError("Worker settings changed.")
+            data = dict(value, updated=self.clock(), pair_epoch=row["pair_epoch"])
+            db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("worker_stats:" + row["id"], json.dumps(data)))
 
     def record_delivery(self, ident, outcome):
         if outcome not in {"sent", "rejected", "unconfirmed"}:
@@ -413,7 +442,8 @@ class Store:
                 raise DashboardError("Unknown account action.")
             if action in {"approve", "disconnect", "remove"}:
                 db.execute("DELETE FROM settings WHERE key=?", ("filters:" + ident,))
-                for table in ("conversation_catalog", "delivery_history", "resend_intents"):
+                db.execute("DELETE FROM settings WHERE key=?", ("worker_stats:" + ident,))
+                for table in ("conversation_catalog", "delivery_history", "resend_intents", "portal_links", "portal_sessions", "portal_profiles"):
                     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
                         db.execute("DELETE FROM " + table + " WHERE account_id=?", (ident,))
 

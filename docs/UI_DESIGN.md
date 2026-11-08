@@ -46,6 +46,19 @@ CSS/JavaScript. No new frontend build or third-party assets are required.
 - **Guest setup:** matching light theme, three clearly labelled steps, explicit
   remote-browser/session consent, and the existing private Telegram handoff.
 
+## User profiles
+
+The owner portal shares the restrained light palette, typography, responsive
+drawer and 44 px controls. Its own navigation contains Overview, Settings,
+Conversations, Delivery history and Profile; it does not reuse administrator
+navigation or cookie forms. Account state is first in the overview, followed by
+retained capture metrics, connection/delivery details and current-run counts.
+Snapshots carry their freshness and scope. Profile editing separates a personal
+display name from the fixed Messenger/Telegram identity and administrator label.
+The sign-in page presents one action, a code comparison, owner approval and an
+explicit continue step. User pages and navigation labels follow Polish/English
+preferences, with dates explicitly in Europe/Warsaw.
+
 ## Mobile remote typing
 
 The labelled keyboard proxy remains focusable but invisible by default on narrow

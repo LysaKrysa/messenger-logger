@@ -1,5 +1,29 @@
 # Validation
 
+## Private user dashboards
+
+- Sign-in tests require an approved pairing, one-time browser claim, matching
+  signed owner confirmation and explicit completion. Wrong users, bot/group
+  senders, altered signatures, expired/replaced/rejected links and concurrent
+  claims/completions cannot create extra authenticated sessions.
+- User session tokens and administrator credentials use independent stores and
+  cookies. CSRF, Origin, idle/absolute expiry, logout-all and administrator
+  revocation checks preserve capture and administrator sessions. Pairing changes
+  revoke ownership; stale mutations cannot modify a newly assigned account.
+- Portal views expose only owned settings and metadata. Synthetic bodies,
+  credential markers and other owners' conversation/delivery records stay absent.
+  Foreign conversation IDs and resend confirmations fail owner checks.
+- Profile/language preferences persist per user without changing the approved
+  identity or administrator label. Forwarding/media/view-once/quiet controls
+  apply without reconnecting; pause/resume keeps the portal session.
+- Owned retained and session counts are generated without text, paths, IDs or
+  URLs. Strict revision-bound reports reject malformed counters/timestamps and
+  show missing/stale statistics and connection reports honestly.
+- A real HTTPS browser fixture exercises the fragment-link/code approval flow,
+  user settings/profile/filters/resends, mobile navigation and all five pages at
+  320, 390, 768, 1024 and 1440 px, then signs out without changing administrator
+  auth or capture. All data and Telegram responses are synthetic.
+
 ## Conversation filters and delivery history
 
 - Capture tests exclude direct/group content before persistence; include-only

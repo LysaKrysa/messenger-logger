@@ -38,6 +38,7 @@ dashboard manages a small shared workspace with one Telegram bot.
 | **Offline alerts & reconnects** | Notify the paired owner and refresh only their original approved account through a one-time, Telegram-confirmed link. |
 | **Conversation filters** | Include or exclude individual chats and groups, with separate local capture and per-conversation Telegram forwarding preferences. |
 | **Delivery history** | Inspect confirmed, failed and uncertain notifications; explicitly confirm a resend while retained content is available. |
+| **Private user dashboards** | Each paired owner has a Telegram-confirmed profile with settings, connection health, capture statistics, filters and delivery history. |
 
 > [!IMPORTANT]
 > This is an **unofficial, best-effort Messenger integration**, not a Meta product.
@@ -77,6 +78,14 @@ Development without Docker requires Python **3.11+**; native compilation require
 Git and Go **1.26.10**.
 
 ## Admin dashboard + one shared bot
+
+Paired users can send **`/panel`** (Polish) or **`/dashboard`** (English) to open
+their own dashboard. They compare a browser code with the confirmation in their
+existing private Telegram chat, approve the sign-in, then continue to their
+profile. No administrator password is shared. User profiles control only the
+already approved Messenger account; they cannot create accounts or change the
+shared bot. See [user dashboards](docs/DASHBOARD.md#private-user-dashboards)
+for sign-in, statistics scope, sessions and upgrade instructions.
 
 ![Administrator dashboard with separate accounts and a shared Telegram bot](docs/assets/dashboard.png)
 

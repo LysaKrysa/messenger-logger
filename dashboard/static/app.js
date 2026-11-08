@@ -12,7 +12,7 @@
       opened = value && !desktop.matches;
       document.body.classList.toggle("nav-open", opened);
       toggle.setAttribute("aria-expanded", String(opened));
-      toggle.setAttribute("aria-label", opened ? "Close navigation" : "Open navigation");
+      toggle.setAttribute("aria-label", opened ? (toggle.dataset.closeLabel || "Close navigation") : (toggle.dataset.openLabel || "Open navigation"));
       backdrop.hidden = !opened;
       main.inert = opened;
       if (opened) {

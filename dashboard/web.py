@@ -55,6 +55,8 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
     app.extensions["deliveries"] = deliveries
     from .setup_web import install
     install(app, store, origin, browser_client)
+    from .portal_web import install as install_portal
+    install_portal(app, store, origin, deliveries, status_root)
 
     def status(ident):
         try:
@@ -68,7 +70,7 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
 
     @app.before_request
     def authenticate():
-        if request.endpoint in {"static", "favicon"} or request.blueprint == "setup":
+        if request.endpoint in {"static", "favicon"} or request.blueprint in {"setup", "portal"}:
             return None
         g.csrf = session.setdefault("csrf", secrets.token_urlsafe(32))
         if request.method == "POST":
@@ -226,6 +228,12 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
     @app.post("/accounts/<ident>/cookies")
     def cookies(ident):
         store.update_cookies(ident, request.form.get("cookies", ""))
+        return redirect(url_for("account", ident=ident))
+
+    @app.post("/accounts/<ident>/portal/revoke")
+    def revoke_portal(ident):
+        account_row(ident)
+        app.extensions["portal_auth"].revoke(ident)
         return redirect(url_for("account", ident=ident))
 
     @app.post("/accounts/<ident>/invite")

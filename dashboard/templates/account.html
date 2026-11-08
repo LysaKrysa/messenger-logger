@@ -57,5 +57,6 @@
     {% endif %}
   </section>
 </div>
+<section class="panel controls"><div><h2>User dashboard access</h2><p class="muted">The paired owner can send /panel or /dashboard to the bot to sign in to their private profile. Each sign-in requires Telegram confirmation.</p></div><form method="post" action="{{ url_for('revoke_portal',ident=account.id) }}" data-confirm="Sign out this user's dashboard browsers and disable pending sign-in links? Capture will continue."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Revoke user sign-ins</button></form></section>
 <section class="danger-zone controls"><div><h2>Remove account</h2><p class="muted">Stops capture and deletes this account’s local archive and configuration. Telegram copies remain.</p></div><form method="post" action="{{ url_for('action',ident=account.id,action='remove') }}" data-confirm="Permanently remove this account and its local archive? Telegram copies remain."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button danger">Remove account</button></form></section>
 {% endblock %}

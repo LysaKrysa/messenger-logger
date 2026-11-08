@@ -76,13 +76,15 @@ class SetupInvites:
             db.execute("INSERT INTO setup_invites(id,token_hash,label,created,expires) VALUES (?,?,?,?,?)", (ident, digest(token), label or "New invitation", now, now + hours * 3600))
         return ident, token
 
-    def create_reconnect(self, user_id):
+    def create_reconnect(self, user_id, *, expected=None):
         if type(user_id) is not int or not 0 < user_id < 2**53:
             raise DashboardError("Reconnect is unavailable.")
         ident, token, now = uuid.uuid4().hex, secrets.token_urlsafe(32), self.store.clock()
         with self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
             account = db.execute("SELECT * FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
+            if expected is not None and (not account or any(account[key] != expected[key] for key in ("id", "pair_epoch", "chat_id", "facebook_id"))):
+                raise DashboardError("Account pairing changed.")
             binding = dict(account or {})
             binding.update(account_id=binding.get("id"), owner_chat=user_id, account_revision=binding.get("revision"))
             if not account or not reconnect_account(self.store, db, binding):

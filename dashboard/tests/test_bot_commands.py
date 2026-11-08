@@ -62,7 +62,7 @@ class CommandTests(Base):
     def test_help_displays_only_selected_language_while_both_command_languages_work(self):
         for language, heading in (("pl", "Polecenia"), ("en", "Commands")):
             self.command("/" + language)
-            expected = {"stan", "pauza", "wznow", "tryb", "media", "cisza", "ustawienia", "pomoc", "en", "pl", "prywatnosc", "odlacz", "start", "polacz", "rozmowy", "wysylki"} if language == "pl" else {"status", "pause", "resume", "mode", "media", "quiet", "settings", "help", "en", "pl", "privacy", "disconnect", "start", "reconnect", "chats", "deliveries"}
+            expected = {"stan", "pauza", "wznow", "tryb", "media", "cisza", "ustawienia", "pomoc", "en", "pl", "prywatnosc", "odlacz", "start", "polacz", "rozmowy", "wysylki", "panel"} if language == "pl" else {"status", "pause", "resume", "mode", "media", "quiet", "settings", "help", "en", "pl", "privacy", "disconnect", "start", "reconnect", "chats", "deliveries", "dashboard"}
             for trigger in ("/help", "/pomoc"):
                 text = self.command(trigger)
                 self.assertIn(heading, text)

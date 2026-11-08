@@ -146,6 +146,7 @@ TEXT["en"].update({
         "/settings — your current settings\n"
         "/chats — conversation capture and forwarding filters\n"
         "/deliveries — delivery history and confirmed resends\n"
+        "/dashboard — your private dashboard, profile and statistics\n"
         "/en — English · /pl — Polish\n"
         "/privacy — privacy information\n"
         "/disconnect — unlink Telegram and stop capture\n"
@@ -198,6 +199,7 @@ TEXT["pl"].update({
         "/ustawienia — Twoje aktualne ustawienia\n"
         "/rozmowy — filtry zapisu i przesyłania rozmów\n"
         "/wysylki — historia wysyłek i potwierdzone ponowienie\n"
+        "/panel — Twój prywatny panel, profil i statystyki\n"
         "/en — język angielski · /pl — język polski\n"
         "/prywatnosc — informacje o prywatności\n"
         "/odlacz — odłącz Telegram i zatrzymaj zapis\n"
@@ -251,6 +253,26 @@ TEXT["pl"].update({
     "resend_sending": "Jednorazowe ponawianie…", "resend_result": "Wynik ponowienia: {value}. Bez automatycznego powtarzania.",
     "menu_denied": "Te ustawienia są dostępne tylko właścicielowi połączonego konta w jego prywatnym czacie z botem.",
     "menu_unavailable": "Niedostępne, wygasłe, wykorzystane lub przekroczono limit. Otwórz polecenie ponownie i sprawdź ustawienia.", "menu_updated": "Zaktualizowano",
+})
+
+
+TEXT["en"].update({
+    "portal_link": "Open your private Messenger dashboard:\n{url}\n\nSingle use, valid for 10 minutes. Compare the browser's sign-in code with the confirmation in this private Telegram chat. Approve only a sign-in you requested. /dashboard creates a new link.",
+    "portal_unavailable": "A dashboard link is available only for your approved, paired account. Limit: six links per 15 minutes. Use /help or contact the administrator.",
+    "portal_confirmation": "Dashboard sign-in requested. Browser code: {code}\n\nApprove only if you opened the dashboard yourself and this code matches your browser. This grants access to your account's settings, connection information and delivery metadata. Reject an unexpected request.",
+    "portal_approve": "Approve sign-in", "portal_reject": "Reject",
+    "portal_approved": "Approved. Return to the browser, verify your account and continue.",
+    "portal_rejected": "Sign-in rejected. The link is disabled.",
+    "portal_expired": "Sign-in request unavailable, expired or already used.",
+})
+TEXT["pl"].update({
+    "portal_link": "Otwórz swój prywatny panel Messengera:\n{url}\n\nLink jest jednorazowy i ważny przez 10 minut. Porównaj kod z przeglądarki z potwierdzeniem w tym prywatnym czacie Telegrama. Zatwierdź tylko własne żądanie logowania. /panel tworzy nowy link.",
+    "portal_unavailable": "Link do panelu jest dostępny tylko dla Twojego zatwierdzonego i połączonego konta. Limit: sześć linków na 15 minut. Wyślij /pomoc lub skontaktuj się z administratorem.",
+    "portal_confirmation": "Żądanie logowania do panelu. Kod przeglądarki: {code}\n\nZatwierdź tylko, jeśli samodzielnie otworzyłeś panel i kod zgadza się z przeglądarką. Logowanie daje dostęp do ustawień, stanu połączenia i metadanych wysyłek Twojego konta. Odrzuć nieoczekiwane żądanie.",
+    "portal_approve": "Zatwierdź logowanie", "portal_reject": "Odrzuć",
+    "portal_approved": "Zatwierdzono. Wróć do przeglądarki, sprawdź swoje konto i kontynuuj.",
+    "portal_rejected": "Odrzucono logowanie. Link został wyłączony.",
+    "portal_expired": "Żądanie logowania jest niedostępne, wygasło lub zostało już wykorzystane.",
 })
 
 

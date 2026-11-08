@@ -33,6 +33,92 @@ menus. See [filters](TELEGRAM.md#conversation-filters),
 [resend behavior and cache limits](TELEGRAM.md#delivery-history-and-explicit-resends),
 and [the upgrade commands](TELEGRAM.md#upgrade-an-existing-dashboard-for-filters-and-history).
 
+## Private user dashboards
+
+Every approved, Telegram-paired owner can open a personal dashboard on the same
+HTTPS server. They do not need or receive the administrator password. The public
+entry point is `/me/login`; the administrator login also links to it.
+
+1. Send `/panel` (Polish) or `/dashboard` (English) in the paired private bot chat.
+   The public entry page can open the same bot with `start=dashboard`.
+2. Open the single-use link within ten minutes and request sign-in confirmation.
+3. Compare the six-digit code in the browser with the bot's confirmation. Approve
+   only your own request, with matching codes, in the existing private Telegram
+   chat. Reject unexpected requests.
+4. Return to the browser, verify the displayed account/Telegram identity, and
+   press **Continue to my dashboard**.
+
+The profile provides:
+
+| Page | Owner controls and information |
+| --- | --- |
+| Overview | Messenger connection, regular/encrypted transports, capture state, last event/check, retained message/deletion/media counts, current worker-session counts and owned Telegram delivery totals. |
+| Settings | Forwarding mode, downloads, immediate available view-once alerts, quiet mode and capture pause/resume. Changes affect only this account. |
+| Profile | Display name, Polish/English dashboard and bot language, fixed Messenger/Telegram identity, privacy notice and sign out all browsers. The administrator's account label is unchanged. |
+| Conversations | Include/exclude chats and groups, default capture policy and independent forwarding overrides. |
+| Delivery history | Retained sent/failed/uncertain results and explicitly acknowledged resends, with the existing duplicate warnings and original expiry. |
+
+The overview can send an eligible one-time reconnect link to the same paired
+Telegram chat. The existing offline gate, owner confirmation and original
+Facebook identity remain mandatory; it cannot provision another account.
+
+Statistics contain counters and connection booleans only, reported approximately
+every 30 seconds. They count incoming captures already retained within 72 hours,
+plus separately labelled current-run counts. Filtered/own/out-of-window content
+is excluded. Retained counts can include captures from an earlier run; no old
+Messenger history is fetched. Paused/offline workers cannot update their
+snapshot, so stale reports are labelled and snapshots older than 72 hours are
+hidden. A missing report is shown as unavailable, not as zero. Delivery totals
+come from that owner's retained history, including explicit resends, not read
+receipts, command replies or skipped notifications. Statistics are not server
+resource/free-tier budgets; those remain administrator-only under Usage.
+
+Links are hashed in the database, consumed once and bound to the already
+approved account/Telegram pairing. A browser claim cannot complete before a
+signed, private, bot-authored confirmation from that owner. Reissuing a link
+invalidates earlier pending attempts; at most six links per 15 minutes are
+allowed per owner. Confirmation sends are claimed durably before network calls;
+an uncertain send is not replayed. Ask the bot for a new link if one does not
+arrive. No token is placed in a query string or browser storage.
+
+Portal cookies are separate from administrator and setup cookies, scoped to the
+HTTPS host, Secure, HttpOnly and SameSite=Strict. Authenticated state-changing requests also
+require the portal session's CSRF token and configured Origin. Browser claims
+require the one-time link secret and Origin; completion uses a separate claim
+CSRF token. Sessions expire
+after 30 minutes without requests or eight hours total, with at most ten retained
+browser sessions per account. An open auto-refreshing overview sends requests;
+the eight-hour absolute limit still applies. Owners can sign out one or all
+browsers. Administrators can use **Revoke user sign-ins** on an account page.
+These actions do not stop capture. Pairing changes/removal revoke user sessions,
+pending logins and profile ownership; pause, restart and same-owner cookie
+refresh preserve access. Portal routes never accept an account selector from
+the user and do not expose cookies, message bodies, media keys, other owners'
+data, shared-bot configuration, invitations or host usage controls.
+
+### Upgrade an existing installation
+
+From the extracted release source:
+
+```bash
+sudo install --backup=numbered -m 644 \
+  conversation_filters.py event_store.py logger.py media_saver.py \
+  telegram_relay.py telegram_i18n.py \
+  /opt/messenger-dashboard/app/
+sudo install --backup=numbered -m 644 dashboard/*.py /opt/messenger-dashboard/app/dashboard/
+sudo install --backup=numbered -m 644 dashboard/templates/*.html /opt/messenger-dashboard/app/dashboard/templates/
+sudo install --backup=numbered -m 644 dashboard/static/* /opt/messenger-dashboard/app/dashboard/static/
+sudo systemctl restart messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
+sudo messenger-dashboard-admin restart-active
+```
+
+The existing database/key/certificate and pairings are preserved, and portal
+tables migrate automatically. The one-time active-worker restart loads aggregate
+statistics and dynamic view-once controls; paused accounts stay paused. Installed
+dashboard workers mount this source, so no native image rebuild is required.
+Afterwards users can send `/panel` or `/dashboard`. Use the same HTTPS origin as
+the administrator dashboard; the existing certificate trust requirements apply.
+
 ## 1. Install alongside the current logger
 
 Use Ubuntu with systemd, Docker, and the existing pinned image
