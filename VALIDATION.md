@@ -1,5 +1,21 @@
 # Validation
 
+## Administrator cookie editing
+
+- Only an explicitly requested administrator POST can load saved cookie values.
+  Anonymous/user-profile sessions, GET, bad CSRF and foreign Origin requests
+  cannot open the editor or change stored sessions.
+- Valid edits remain encrypted, preserve Messenger/Telegram identity and paused
+  state, and rotate worker credentials/revision once. Invalid JSON, different
+  account IDs, reused stamps and concurrent cookie/pairing changes are rejected.
+- HTML-like cookie values stay escaped and invalid edits remain available for
+  correction. Ordinary pages and the database contain no revealed plaintext.
+  The editor returns private no-store headers and keeps the same-origin referrer
+  policy so genuine browser forms retain the Origin required by CSRF checks.
+- A real browser fixture loads, corrects, reloads and saves synthetic cookies,
+  rejects a stale edit after a concurrent refresh and checks responsive controls
+  at 320, 390 and 1440 px. No live login or real cookie values are used.
+
 ## Private user dashboards
 
 - Sign-in tests require an approved pairing, one-time browser claim, matching

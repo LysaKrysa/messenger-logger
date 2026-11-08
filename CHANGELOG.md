@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — administrator cookie editor
+
+- Add an explicit **Edit saved cookies** action to each administrator account
+  page. Load the existing decrypted JSON only into a private, non-cached editor;
+  keep ordinary pages and user dashboards free of saved credentials.
+- Save validated edits encrypted, keep the original Facebook identity and
+  Telegram pairing, and reconnect active workers while preserving paused state.
+- Reject stale edits after a cookie refresh or pairing change, preserve invalid
+  input for correction, and clear editor fields when leaving the document.
+
 ## Unreleased — private user profiles and dashboards
 
 - Add bilingual mobile user overview, settings, profile, conversation filters

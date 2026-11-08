@@ -8,6 +8,7 @@
   <span class="status {% if status.get('ready') and not status.get('stale') %}online{% else %}warning{% endif %}"><span class="dot"></span>{% if status.get('stale') %}Awaiting manager{% elif status.get('ready') %}Connected{% else %}{{ status.get('state','Not started')|replace('_',' ')|capitalize }}{% endif %}</span>
 </div>
 {% if status.reason %}<div class="notice warning" role="status">{{ status.reason }}</div>{% endif %}
+{% if request.args.get('cookies_saved') == '1' %}<div class="notice" role="status">Cookie changes saved and encrypted. An active worker reconnects with the updated session.</div>{% endif %}
 {% if invite %}
 <div class="notice invite"><strong>Share this Telegram invitation</strong><p>Single use. Expires in 15 minutes. After the owner presses Start in Telegram, return here to approve their identity.</p><div class="copy-row"><input id="invite" value="{{ invite }}" readonly aria-label="Telegram invitation link"><button class="button secondary" data-copy="invite" type="button">Copy link</button></div><p class="field-note">This link is shown once. Creating another invitation revokes this one.</p></div>
 {% endif %}
@@ -34,8 +35,9 @@
     </section>
     <section class="panel session-panel">
       <details {% if not account.has_cookies %}open{% endif %}>
-        <summary class="session-summary"><span><strong>Messenger session</strong><span class="muted">{{ 'Saved and encrypted. Open to replace cookies.' if account.has_cookies else 'Add cookies to connect this account.' }}</span></span><span class="chip">{{ 'Saved' if account.has_cookies else 'Required' }}</span></summary>
+        <summary class="session-summary"><span><strong>Messenger session</strong><span class="muted">{{ 'Saved and encrypted. Open to edit or replace cookies.' if account.has_cookies else 'Add cookies to connect this account.' }}</span></span><span class="chip">{{ 'Saved' if account.has_cookies else 'Required' }}</span></summary>
         <div class="session-body"><p class="muted">Replace cookies when Facebook asks you to sign in again. An active worker restarts with the new session.</p>
+          {% if account.has_cookies %}<form method="post" action="{{ url_for('cookie_editor',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="load"><button class="button secondary">Edit saved cookies</button></form><p class="field-note">Opens the existing cookie JSON for administrator troubleshooting. To replace the complete session instead, paste fresh cookies below.</p>{% endif %}
           <form method="post" action="{{ url_for('cookies',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="cookies">{{ 'New cookie JSON' if account.has_cookies else 'Cookie JSON' }}</label><textarea id="cookies" name="cookies" rows="6" maxlength="131072" autocomplete="off" spellcheck="false" required placeholder="Saved cookies are never displayed here." aria-describedby="session-note"></textarea><p class="field-note" id="session-note">Encrypted at rest. Never paste cookies into Telegram.</p><button class="button secondary">Save cookies</button></form>
         </div>
       </details>
