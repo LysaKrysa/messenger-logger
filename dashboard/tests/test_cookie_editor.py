@@ -42,7 +42,7 @@ class CookieEditorTests(Base):
         self.assertEqual(json.loads(raw), json.loads(COOKIES))
         self.assertIn("no-store", response.headers["Cache-Control"])
         self.assertIn("private", response.headers["Cache-Control"])
-        self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
+        self.assertEqual(response.headers["Referrer-Policy"], "same-origin")
         self.assertIn("noarchive", response.headers["X-Robots-Tag"])
 
     def test_owner_portal_and_anonymous_sessions_cannot_load_or_save_credentials(self):
@@ -61,7 +61,7 @@ class CookieEditorTests(Base):
         self.assertNotIn(b"SYNTHETIC_XS_PRIVATE", user.get("/me/profile", base_url=ORIGIN).data)
 
     def test_csrf_origin_and_missing_snapshot_cannot_reveal_or_change_cookies(self):
-        for kwargs in ({"csrf": "wrong"}, {"origin": "https://evil.test"}):
+        for kwargs in ({"csrf": "wrong"}, {"origin": "https://evil.test"}, {"origin": "null"}):
             response = self.post({"action": "load"}, **kwargs)
             self.assertEqual(response.status_code, 403)
             self.assertNotIn(b"SYNTHETIC_XS_PRIVATE", response.data)

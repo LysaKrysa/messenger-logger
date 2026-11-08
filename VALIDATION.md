@@ -10,7 +10,8 @@
   account IDs, reused stamps and concurrent cookie/pairing changes are rejected.
 - HTML-like cookie values stay escaped and invalid edits remain available for
   correction. Ordinary pages and the database contain no revealed plaintext.
-  The editor returns private no-store/no-referrer headers.
+  The editor returns private no-store headers and keeps the same-origin referrer
+  policy so genuine browser forms retain the Origin required by CSRF checks.
 - A real browser fixture loads, corrects, reloads and saves synthetic cookies,
   rejects a stale edit after a concurrent refresh and checks responsive controls
   at 320, 390 and 1440 px. No live login or real cookie values are used.

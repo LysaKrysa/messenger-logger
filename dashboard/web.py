@@ -97,7 +97,7 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
             "Content-Security-Policy": "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
             "Permissions-Policy": "camera=(), microphone=(), geolocation=()"})
         if request.endpoint == "cookie_editor":
-            response.headers.update({"Cache-Control": "no-store, private", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, noarchive"})
+            response.headers.update({"Cache-Control": "no-store, private", "X-Robots-Tag": "noindex, noarchive"})
         return response
 
     @app.context_processor
