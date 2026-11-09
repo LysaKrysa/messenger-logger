@@ -13,6 +13,7 @@ import subprocess
 import threading
 import time
 
+from logger import SESSION_ENV, SESSION_ID
 from .store import Store, DashboardError, account_id, from_environment
 from .usage import UsageCollector
 
@@ -95,12 +96,13 @@ class Manager:
         if type(row["chat_id"]) is not int or row["chat_id"] <= 0 or type(row["revision"]) is not int or row["revision"] <= 0 or row["mode"] not in {"all", "deleted"}:
             raise DashboardError("Invalid worker configuration.")
         cookies = self.store.unseal("cookies:" + ident, row["cookies"])
-        parsed = Store.validate_cookies(json.dumps(cookies))
-        if parsed["c_user"] != row["facebook_id"] or type(bot["id"]) is not int or bot["id"] <= 0:
+        platform = row["platform"]
+        parsed = Store.validate_cookies(json.dumps(cookies), platform=platform)
+        if parsed[SESSION_ID[platform]] != row["facebook_id"] or type(bot["id"]) is not int or bot["id"] <= 0:
             raise DashboardError("Worker identity validation failed.")
         data = self.path(ident)
         credentials = self.runtime_root / (ident + ".json")
-        private_json(credentials, {"FB_SESSION_JSON": json.dumps(parsed, separators=(",", ":")), "TELEGRAM_ACCOUNT_KEY": self.store.worker_key(row)})
+        private_json(credentials, {SESSION_ENV[platform]: json.dumps(parsed, separators=(",", ":")), "TELEGRAM_ACCOUNT_KEY": self.store.worker_key(row)})
         args = ["run", "-d", "--name", "messenger-account-" + ident,
                 "--label", LABEL + "=true", "--label", "messenger.account=" + ident,
                 "--label", "messenger.revision=" + str(row["revision"]),
@@ -117,6 +119,8 @@ class Manager:
                "TELEGRAM_BOT_ID": str(bot["id"]), "TELEGRAM_CHAT_ID": str(row["chat_id"]), "TELEGRAM_TOPICS": "true",
                "TELEGRAM_MODE": row["mode"], "TELEGRAM_SEND_MEDIA": "true", "TELEGRAM_VIEW_ONCE": "true" if row["view_once"] else "false",
                "LOGGER_MEDIA_MAX_MB": "25", "GOMEMLIMIT": "256MiB"}
+        if platform == "instagram":
+            env.update(LOGGER_PLATFORM="instagram", LOGGER_E2EE="false")
         for key, value in env.items():
             args += ["--env", key + "=" + value]
         self.docker.call(*args, self.image)
@@ -145,7 +149,7 @@ class Manager:
                     result["ready"] = False
                     if "Cookie configuration loaded." in line:
                         result.update(messages=0, deletions=0)
-                if "Messenger listener ready" in line:
+                if "Messenger listener ready" in line or "Instagram listener ready" in line:
                     result["ready"] = True
                 match = re.search(r"This run: (\d{1,10}) messages, (\d{1,10}) deletions,", line)
                 if match:

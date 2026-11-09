@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 from flask import Flask, abort, g, redirect, render_template, request, session, url_for
 from werkzeug.exceptions import HTTPException
 
+from logger import PLATFORM_NAMES
 from .store import BOT_TOKEN, DashboardError, from_environment
 from .usage import parse_config
 from .usage_view import build_view
@@ -102,7 +103,8 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
 
     @app.context_processor
     def context():
-        return {"csrf": getattr(g, "csrf", ""), "bot": store.bot(), "capacity": store.max_accounts}
+        return {"csrf": getattr(g, "csrf", ""), "bot": store.bot(), "capacity": store.max_accounts,
+                "platform_names": PLATFORM_NAMES}
 
     @app.template_filter("filesize")
     def filesize(value):
@@ -155,9 +157,13 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
     @app.route("/accounts/new", methods=["GET", "POST"])
     def new_account():
         if request.method == "POST":
-            ident = store.add_account(request.form.get("name", ""), request.form.get("cookies", ""))
+            ident = store.add_account(request.form.get("name", ""), request.form.get("cookies", ""),
+                                      platform=request.form.get("platform", "facebook"))
             return redirect(url_for("account", ident=ident))
-        return render_template("new.html")
+        platform = request.args.get("platform", "facebook")
+        if platform not in PLATFORM_NAMES:
+            abort(400)
+        return render_template("new.html", platform=platform)
 
     def account_page(ident, **extra):
         account = store.account(ident)

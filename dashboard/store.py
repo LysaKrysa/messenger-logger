@@ -16,11 +16,22 @@ import uuid
 from cryptography.fernet import Fernet, InvalidToken
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from logger import parse_cookies, ConfigurationError
+from logger import COOKIE_NAMES, PLATFORM_NAMES, SESSION_ID, parse_cookies, ConfigurationError
 from telegram_i18n import language as normalize_language
 
 ID = re.compile(r"[a-f0-9]{32}\Z")
 BOT_TOKEN = re.compile(r"[0-9]+:[A-Za-z0-9_-]{20,}\Z")
+# Keep the legacy identity column so existing owner sessions and delivery rows
+# retain their bindings. Its value is the numeric account ID for the platform.
+ACCOUNTS_SCHEMA = """CREATE TABLE IF NOT EXISTS accounts(
+    id TEXT PRIMARY KEY,name TEXT NOT NULL,cookies TEXT,facebook_id TEXT,
+    chat_id INTEGER,pending_chat INTEGER,pending_name TEXT,
+    desired INTEGER NOT NULL DEFAULT 0,revision INTEGER NOT NULL DEFAULT 1,
+    auth_epoch INTEGER NOT NULL DEFAULT 1,mode TEXT NOT NULL DEFAULT 'deleted',
+    view_once INTEGER NOT NULL DEFAULT 0,created REAL NOT NULL,pair_epoch INTEGER NOT NULL DEFAULT 1,
+    platform TEXT NOT NULL DEFAULT 'facebook' CHECK(platform IN ('facebook','instagram')),
+    UNIQUE(platform,facebook_id),UNIQUE(platform,chat_id),UNIQUE(platform,pending_chat)
+)"""
 
 
 class DashboardError(ValueError):
@@ -50,13 +61,6 @@ class Store:
                 db.executescript('''
                     PRAGMA journal_mode=WAL;
                     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-                    CREATE TABLE IF NOT EXISTS accounts(
-                        id TEXT PRIMARY KEY,name TEXT NOT NULL,cookies TEXT,facebook_id TEXT UNIQUE,
-                        chat_id INTEGER UNIQUE,pending_chat INTEGER UNIQUE,pending_name TEXT,
-                        desired INTEGER NOT NULL DEFAULT 0,revision INTEGER NOT NULL DEFAULT 1,
-                        auth_epoch INTEGER NOT NULL DEFAULT 1,mode TEXT NOT NULL DEFAULT 'deleted',
-                        view_once INTEGER NOT NULL DEFAULT 0,created REAL NOT NULL
-                    );
                     CREATE TABLE IF NOT EXISTS invites(
                         hash TEXT PRIMARY KEY,account_id TEXT NOT NULL UNIQUE,expires REAL NOT NULL
                     );
@@ -66,8 +70,18 @@ class Store:
                     CREATE TABLE IF NOT EXISTS limits(key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires REAL NOT NULL);
                 ''')
                 db.execute("BEGIN IMMEDIATE")
-                if "pair_epoch" not in {row[1] for row in db.execute("PRAGMA table_info(accounts)")}:
+                db.execute(ACCOUNTS_SCHEMA)
+                columns = {row[1] for row in db.execute("PRAGMA table_info(accounts)")}
+                if "pair_epoch" not in columns:
                     db.execute("ALTER TABLE accounts ADD COLUMN pair_epoch INTEGER NOT NULL DEFAULT 1")
+                if "platform" not in columns:
+                    # Replace the old global uniqueness constraints while retaining
+                    # account IDs and every session/pairing epoch.
+                    fields = "id,name,cookies,facebook_id,chat_id,pending_chat,pending_name,desired,revision,auth_epoch,mode,view_once,created,pair_epoch"
+                    db.execute("ALTER TABLE accounts RENAME TO legacy_accounts")
+                    db.execute(ACCOUNTS_SCHEMA)
+                    db.execute("INSERT INTO accounts(" + fields + ") SELECT " + fields + " FROM legacy_accounts")
+                    db.execute("DROP TABLE legacy_accounts")
             os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -153,16 +167,24 @@ class Store:
             raise DashboardError("Conversation filter settings are invalid.")
         return value
 
-    def user_account(self, user_id):
+    @staticmethod
+    def paired_account(db, user_id, *, platform=None, ident=None):
+        return db.execute(
+            "SELECT * FROM accounts WHERE chat_id=? AND (? IS NULL OR platform=?) "
+            "AND (? IS NULL OR id=?) ORDER BY platform LIMIT 1",
+            (user_id, platform, platform, ident, ident),
+        ).fetchone()
+
+    def user_account(self, user_id, *, platform=None):
         with self.db() as db:
-            row = db.execute("SELECT id FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
-        return self.account(row[0]) if row else None
+            row = self.paired_account(db, user_id, platform=platform)
+        return self.public_account(dict(row)) if row else None
 
     def user_control(self, user_id, command, value=None, *, expected=None):
         """Resolve ownership and apply one allowlisted command atomically."""
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT * FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
+            row = self.paired_account(db, user_id, ident=expected["id"] if expected is not None else None)
             if row is None:
                 return False
             if expected is not None and any(row[key] != expected[key] for key in ("id", "pair_epoch", "chat_id", "facebook_id")):
@@ -303,24 +325,28 @@ class Store:
             db.execute("INSERT INTO limits VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1", (key, now + window))
         return True
 
+    @staticmethod
+    def public_account(row):
+        row["has_cookies"] = bool(row.pop("cookies"))
+        row.pop("auth_epoch")
+        return row
+
     def accounts(self, *, private=False):
         with self.db() as db:
             rows = [dict(row) for row in db.execute("SELECT * FROM accounts ORDER BY created")]
-        if not private:
-            for row in rows:
-                row["has_cookies"] = bool(row.pop("cookies"))
-                row.pop("auth_epoch")
-        return rows
+        return rows if private else [self.public_account(row) for row in rows]
 
     def account(self, ident, *, private=False):
         account_id(ident)
         return next((row for row in self.accounts(private=private) if row["id"] == ident), None)
 
-    def add_account(self, name, cookies=""):
+    def add_account(self, name, cookies="", *, platform="facebook"):
         name = name.strip() if isinstance(name, str) else ""
         if not name or len(name) > 80 or any(ord(c) < 32 for c in name):
             raise DashboardError("Use an account label between 1 and 80 characters.")
-        parsed = self.validate_cookies(cookies) if cookies.strip() else None
+        if platform not in PLATFORM_NAMES:
+            raise DashboardError("Choose Messenger or Instagram.")
+        parsed = self.validate_cookies(cookies, platform=platform) if cookies.strip() else None
         ident = uuid.uuid4().hex
         try:
             with self.db() as db:
@@ -333,19 +359,23 @@ class Store:
                     reserved = db.execute("SELECT COUNT(*) FROM setup_invites WHERE " + purpose + "expires>? AND (state='pending' OR (state='claimed' AND session_expires>?))", (now, now)).fetchone()[0]
                     if db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] + reserved >= self.max_accounts:
                         raise DashboardError("Available account slots are reserved by active setup links. Disable an unused link before adding an account manually.")
-                db.execute("INSERT INTO accounts(id,name,cookies,facebook_id,created) VALUES (?,?,?,?,?)", (ident, name, self.seal("cookies:" + ident, parsed) if parsed else None, parsed["c_user"] if parsed else None, self.clock()))
+                db.execute("INSERT INTO accounts(id,name,cookies,facebook_id,created,platform) VALUES (?,?,?,?,?,?)",
+                           (ident, name, self.seal("cookies:" + ident, parsed) if parsed else None,
+                            parsed[SESSION_ID[platform]] if parsed else None, self.clock(), platform))
         except sqlite3.IntegrityError:
-            raise DashboardError("That Messenger account is already configured.") from None
+            raise DashboardError("That " + PLATFORM_NAMES[platform] + " account is already configured.") from None
         return ident
 
     @staticmethod
-    def validate_cookies(raw):
+    def validate_cookies(raw, *, platform="facebook"):
         if not isinstance(raw, str) or len(raw) > 131072:
             raise DashboardError("Cookie JSON must be at most 128 KB.")
         try:
-            return parse_cookies(raw)
+            return parse_cookies(raw, platform=platform)
         except ConfigurationError:
-            raise DashboardError("Cookie JSON is invalid. Include c_user, xs, and datr from your own session.") from None
+            required = COOKIE_NAMES[platform][0]
+            raise DashboardError("Cookie JSON is invalid. Include " + ", ".join(required[:-1]) +
+                                 ", and " + required[-1] + " from your own session.") from None
 
     def _cookie_edit_stamp(self, row):
         return self.secret("cookie-edit:" + row["id"] + ":" + str(row["pair_epoch"]) + ":" + str(row["facebook_id"]) + ":" + digest(row["cookies"] or ""))
@@ -356,26 +386,31 @@ class Store:
         if row is None or not row["cookies"]:
             raise DashboardError("No saved cookies are available for this account.")
         cookies = self.unseal("cookies:" + ident, row["cookies"])
-        public = {"id": row["id"], "name": row["name"], "facebook_id": row["facebook_id"]}
+        public = {key: row[key] for key in ("id", "name", "facebook_id", "platform")}
         return public, json.dumps(cookies, ensure_ascii=True, indent=2, sort_keys=True), self._cookie_edit_stamp(row)
 
     def update_cookies(self, ident, raw, *, expected_stamp=None):
-        parsed = self.validate_cookies(raw)
         account_id(ident)
+        service = "Messenger"
         try:
             with self.db() as db:
                 db.execute("BEGIN IMMEDIATE")
                 row = db.execute("SELECT * FROM accounts WHERE id=?", (ident,)).fetchone()
                 if not row:
                     raise DashboardError("Account not found.")
+                platform = row["platform"]
+                service = PLATFORM_NAMES[platform]
+                parsed = self.validate_cookies(raw, platform=platform)
+                remote_id = parsed[SESSION_ID[platform]]
                 if expected_stamp is not None and (not isinstance(expected_stamp, str) or not expected_stamp.isascii()
                         or not hmac.compare_digest(expected_stamp, self._cookie_edit_stamp(row))):
                     raise DashboardError("Saved cookies or account pairing changed. Reload saved cookies before editing again.")
-                if row["facebook_id"] and row["facebook_id"] != parsed["c_user"]:
-                    raise DashboardError("Those cookies belong to a different Messenger account. Create a separate account instead.")
-                db.execute("UPDATE accounts SET cookies=?,facebook_id=?,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=?", (self.seal("cookies:" + ident, parsed), parsed["c_user"], ident))
+                if row["facebook_id"] and row["facebook_id"] != remote_id:
+                    raise DashboardError("Those cookies belong to a different " + service + " account. Create a separate account instead.")
+                db.execute("UPDATE accounts SET cookies=?,facebook_id=?,revision=revision+1,auth_epoch=auth_epoch+1 WHERE id=?",
+                           (self.seal("cookies:" + ident, parsed), remote_id, ident))
         except sqlite3.IntegrityError:
-            raise DashboardError("That Messenger account is already configured.") from None
+            raise DashboardError("That " + service + " account is already configured.") from None
 
     def configure_bot(self, token, bot):
         if not BOT_TOKEN.fullmatch(token) or not isinstance(bot, dict) or type(bot.get("id")) is not int or str(bot.get("id")) != token.split(":", 1)[0] or bot.get("has_topics_enabled") is not True or not isinstance(bot.get("username"), str) or not re.fullmatch(r"[A-Za-z0-9_]{1,64}", bot["username"]):
@@ -415,21 +450,25 @@ class Store:
             return False
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT account_id FROM invites WHERE hash=? AND expires>?", (digest(token), self.clock())).fetchone()
-            if not row or db.execute("SELECT 1 FROM accounts WHERE chat_id=? OR pending_chat=?", (chat_id, chat_id)).fetchone():
+            row = db.execute("SELECT a.id,a.platform FROM invites i JOIN accounts a ON a.id=i.account_id WHERE i.hash=? AND i.expires>?",
+                             (digest(token), self.clock())).fetchone()
+            if not row or db.execute("SELECT 1 FROM accounts WHERE platform=? AND (chat_id=? OR pending_chat=?)",
+                                     (row["platform"], chat_id, chat_id)).fetchone():
                 return False
             changed = db.execute("UPDATE accounts SET pending_chat=?,pending_name=? WHERE id=? AND chat_id IS NULL AND pending_chat IS NULL", (chat_id, name[:100], row[0])).rowcount
             if changed:
                 db.execute("DELETE FROM invites WHERE hash=?", (digest(token),))
         return bool(changed)
 
-    def action(self, ident, action, *, mode="deleted", view_once=False):
+    def action(self, ident, action, *, mode="deleted", view_once=False, expected_owner=None):
         account_id(ident)
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT * FROM accounts WHERE id=?", (ident,)).fetchone()
             if not row:
                 raise DashboardError("Account not found.")
+            if expected_owner is not None and expected_owner not in (row["chat_id"], row["pending_chat"]):
+                return False
             if action == "approve":
                 if not row["pending_chat"]:
                     raise DashboardError("There is no pending Telegram pairing.")
@@ -475,12 +514,13 @@ class Store:
         row = self.account(ident, private=True)
         return row if row and row["desired"] and row["chat_id"] and hmac.compare_digest(token, self.worker_key(row)) else None
 
-    def disconnect_user(self, chat_id):
+    def disconnect_user(self, chat_id, *, platform=None):
         with self.db() as db:
-            row = db.execute("SELECT id FROM accounts WHERE chat_id=? OR pending_chat=?", (chat_id, chat_id)).fetchone()
-        if row:
-            self.action(row[0], "disconnect")
-        return bool(row)
+            rows = db.execute("SELECT id FROM accounts WHERE (chat_id=? OR pending_chat=?) AND (? IS NULL OR platform=?)",
+                              (chat_id, chat_id, platform, platform)).fetchall()
+        for row in rows:
+            self.action(row[0], "disconnect", expected_owner=chat_id)
+        return bool(rows)
 
 
 def from_environment(*, readonly=False):

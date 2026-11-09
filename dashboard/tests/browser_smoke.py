@@ -26,6 +26,31 @@ from dashboard.tests.portal_browser_smoke import verify as verify_portal
 from dashboard.tests.cookie_editor_browser_smoke import verify as verify_cookie_editor
 
 
+def verify_instagram(page, origin, store, owner):
+    page.goto(origin + "/")
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.get_by_role("link", name="Connect Instagram").click()
+    page.get_by_role("heading", name="Connect Instagram").wait_for()
+    page.get_by_label("Account label").fill("Instagram pilot")
+    page.locator("#cookies").fill(json.dumps({"ds_user_id": "444000887",
+        "sessionid": "SYNTHETIC_INSTAGRAM_PRIVATE", "csrftoken": "SYNTHETIC_CSRF"}))
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.get_by_role("button", name="Create account").click()
+    ident = page.url.rsplit("/", 1)[-1]
+    assert store.account(ident)["platform"] == "instagram"
+    assert "SYNTHETIC_INSTAGRAM_PRIVATE" not in page.content()
+    page.get_by_role("button", name="Create invitation").click()
+    assert store.claim_invite(page.locator("#invite").input_value().split("start=")[1], owner, "@synthetic_jordan")
+    page.reload()
+    page.get_by_role("button", name="Approve pairing").click()
+    page.get_by_role("button", name="Start", exact=True).click()
+    assert store.account(ident)["desired"]
+    assert store.user_account(owner, platform="instagram")["id"] == ident
+    assert store.user_account(owner)["id"] != ident
+    store.action(ident, "remove")
+    page.set_viewport_size({"width": 1440, "height": 1050})
+
+
 def main():
     output = Path(os.environ.get("DASHBOARD_SCREENSHOTS", "dashboard-screenshots"))
     output.mkdir(parents=True, exist_ok=True)
@@ -100,6 +125,7 @@ def main():
                 verify_cookie_editor(page, origin, account_url, store, output)
                 verify_deliveries(page, origin, account_url, store, app.extensions["deliveries"], telegram, output)
                 verify_portal(browser, page, origin, store, app, telegram, output)
+                verify_instagram(page, origin, store, 99999888)
                 page.goto(account_url)
                 page.get_by_role("link", name="All accounts", exact=True).click()
                 page.set_viewport_size({"width": 390, "height": 844})

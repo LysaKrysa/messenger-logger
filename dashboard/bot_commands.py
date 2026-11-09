@@ -14,6 +14,15 @@ ALIASES = {
     "panel": "dashboard",
 }
 CONTROLS = {"status", "pause", "resume", "mode", "media", "quiet", "settings"}
+SCOPED = CONTROLS | {"dashboard", "reconnect", "chats", "deliveries", "disconnect", "stop"}
+
+
+def account_scope(command, raw):
+    parts = raw.rsplit(maxsplit=1)
+    targets = {"messenger": "facebook", "instagram": "instagram"}
+    if command in SCOPED and parts and parts[-1].casefold() in targets:
+        return targets[parts[-1].casefold()], parts[0] if len(parts) == 2 else ""
+    return None, raw
 
 
 def argument(command, raw):
@@ -58,16 +67,17 @@ def overview(store, row, language, *, status=False):
     return tr(language, "status_title" if status else "settings_title") + "\n\n" + "\n".join(tr(language, "label_" + key) + ": " + str(value) for key, value in fields)
 
 
-def handle_control(store, user_id, command, raw, language):
+def handle_control(store, user_id, command, raw, language, *, platform=None):
     value = argument(command, raw)
     if value is None:
         return tr(language, "command_usage")
-    row = store.user_account(user_id)
+    row = store.user_account(user_id, platform=platform)
     if row is None:
         return tr(language, "not_paired")
     if command in {"status", "settings"}:
-        return overview(store, row, language, status=command == "status")
-    if not store.user_control(user_id, command, value):
+        title = "Instagram · " if row["platform"] == "instagram" else ""
+        return title + overview(store, row, language, status=command == "status")
+    if not store.user_control(user_id, command, value, expected=row):
         return tr(language, "not_paired")
     if command in {"pause", "resume"}:
         return tr(language, command + "_saved")

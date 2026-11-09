@@ -32,12 +32,13 @@ def topic_title(name, language="en"):
 
 
 class TopicRouter:
-    def __init__(self, api, store, bot_id, chat_id, *, language="en"):
+    def __init__(self, api, store, bot_id, chat_id, *, language="en", title_prefix=""):
         self.language = language
         self.api, self.store = api, store
         self.bot_id, self.requested_chat = str(bot_id), str(chat_id)
         self.chat_id = None
         self.retry_at = 0.0
+        self.title_prefix = title_prefix
 
     def destination(self):
         if self.chat_id is not None:
@@ -71,6 +72,8 @@ class TopicRouter:
     def unique_title(self, name):
         existing = self.store.telegram_topic_names(self.bot_id, self.chat_id)
         base = topic_title(name, self.language)
+        if self.title_prefix:
+            base = topic_title(self.title_prefix + " · " + base, self.language)
         title, index = base, 2
         while title in existing:
             suffix = " (" + str(index) + ")"

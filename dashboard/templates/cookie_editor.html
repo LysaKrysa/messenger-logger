@@ -2,11 +2,12 @@
 {% block title %}Edit saved cookies · {{ account.name }}{% endblock %}
 {% block breadcrumb %}Edit saved cookies{% endblock %}
 {% block content %}
+{% set service = platform_names[account.platform] %}
 <a class="back-link" href="{{ url_for('account',ident=account.id) }}">{{ icon('back') }}{{ account.name }}</a>
-<div class="page-heading"><div><h1>Edit saved cookies</h1><p class="muted">Troubleshoot the saved Messenger session for {{ account.name }}.</p></div></div>
+<div class="page-heading"><div><h1>Edit saved cookies</h1><p class="muted">Troubleshoot the saved {{ service }} session for {{ account.name }}.</p></div></div>
 <section class="panel narrow">
-  <h2>Messenger account {{ account.facebook_id }}</h2>
-  <p class="field-note">This editor contains login credentials. Keep changes within this approved Messenger account. Saving encrypts the updated cookies and reconnects an active worker; a paused account stays paused.</p>
+  <h2>{{ service }} account {{ account.facebook_id }}</h2>
+  <p class="field-note">This editor contains login credentials. Keep changes within this approved {{ service }} account. Saving encrypts the updated cookies and reconnects an active worker; a paused account stays paused.</p>
   {% if error %}<div class="notice error" role="alert">{{ error }}</div>{% endif %}
   <form method="post" action="{{ url_for('cookie_editor',ident=account.id) }}" autocomplete="off">
     <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="save"><input type="hidden" name="stamp" value="{{ stamp }}">

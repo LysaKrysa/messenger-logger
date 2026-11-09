@@ -267,7 +267,7 @@ class MediaTests(unittest.TestCase):
             self.assertEqual(media_limit(), 100 * 1024 * 1024)
 
 
-def rpc_binary(root, *, delay=0.25):
+def rpc_binary(root, *, delay=0.25, instagram=False):
     script = root / "media-bridge"
     code = '''import json,sys,time,base64
 connected=False
@@ -277,21 +277,31 @@ for line in sys.stdin:
     method=req['method']
     data={}
     if method=='hello':
-        data={'bridgeVersion':'2.3.4-logger.1','protocolVersion':1,'capabilities':['newClient','connect','connectE2EE','isConnected','events','structuredConnectionStatus','viewOnceMedia','contactLookup']}
+        data={'bridgeVersion':'2.3.4-logger.2','protocolVersion':1,'capabilities':['newClient','connect','connectE2EE','isConnected','events','structuredConnectionStatus','viewOnceMedia','contactLookup','instagramDMs']}
+    elif method=='newClient' and INSTAGRAM:
+        assert req['params']['platform']=='instagram' and 'devicePath' not in req['params']
     elif method=='connect':
         connected=True
         data={'user':{'id':12345,'name':'Fixture'}}
         fresh={'type':'message','timestamp':int(time.time()*1000),'data':{'id':'new-photo','threadId':42,'senderId':222,'timestampMs':int(time.time()*1000),'text':'caption','attachments':[{'type':'image','url':'https://fbcdn.net/photo','mimeType':'image/png'}]}}
+        if INSTAGRAM:
+            data['user']['senderId']='987654'
+            fresh['data']['threadId']='340282366841710300949128777'
+            fresh['data']['attachments'][0].update(viewOnce=True,viewMode='once',url='https://cdninstagram.com/photo')
         old=json.loads(json.dumps(fresh)); old['data']['id']='old-photo';old['data']['timestampMs']=1
         for event in [old,fresh,fresh]: print(json.dumps({'event':event}),flush=True)
-    elif method=='connectE2EE': encrypted=True
+        if INSTAGRAM:
+            print(json.dumps({'event':{'type':'messageUnsend','timestamp':int(time.time()*1000),'data':{'messageId':'new-photo','threadId':fresh['data']['threadId']}}}),flush=True)
+    elif method=='connectE2EE':
+        assert not INSTAGRAM
+        encrypted=True
     elif method=='isConnected': data={'connected':connected,'e2eeConnected':encrypted}
     elif method=='downloadMedia':
         print(json.dumps({'event':{'type':'message','timestamp':1002000,'data':{'id':'interleaved','threadId':42,'senderId':222,'timestampMs':1002000,'text':'while downloading'}}}),flush=True)
         time.sleep(DELAY)
         data={'data':ENCODED}
     print(json.dumps({'id':req['id'],'ok':True,'data':data}),flush=True)
-'''.replace("DELAY", repr(delay)).replace("ENCODED", repr(base64.b64encode(PNG).decode()))
+'''.replace("DELAY", repr(delay)).replace("ENCODED", repr(base64.b64encode(PNG).decode())).replace("INSTAGRAM", repr(instagram))
     script.write_text("#!" + sys.executable + "\n" + code)
     script.chmod(0o700)
     return script
@@ -365,6 +375,28 @@ class MediaIntegrationTests(unittest.TestCase):
             _, rows = load_messages(root / "messenger-modern.sqlite3")
             self.assertEqual([item["message_id"] for item in rows], ["new-photo"])
             self.assertEqual((root / rows[0]["attachments"][0]["localPath"]).read_bytes(), PNG)
+
+    def test_instagram_runtime_saves_view_once_bytes_and_matches_unsend(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as folder:
+            root = Path(folder)
+            runtime = logger.LoggerRuntime(root, "UTC", threading.Event(), platform="instagram")
+            cookies = {"ds_user_id": "12345", "sessionid": "synthetic", "csrftoken": "synthetic"}
+            with patch("logger.Bridge", side_effect=lambda path, **kw: Bridge(path, verify=False, **kw)), patch.dict(os.environ, {"TELEGRAM_ENABLED": "false"}), contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    runtime.connect(cookies, rpc_binary(root, delay=0, instagram=True), False)
+                    deadline = time.monotonic() + 3
+                    while (runtime.media.saved < 1 or runtime.deleted_this_run < 1) and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertEqual(runtime.messages_this_run, 1)
+                    self.assertEqual(runtime.deleted_this_run, 1)
+                    self.assertIsNone(runtime.consumer_failure)
+                finally:
+                    runtime.close()
+            _, rows = load_messages(root / "messenger-modern.sqlite3")
+            self.assertEqual([item["message_id"] for item in rows], ["new-photo"])
+            media = rows[0]["attachments"][0]
+            self.assertEqual(media["viewMode"], "once")
+            self.assertEqual((root / media["localPath"]).read_bytes(), PNG)
 
 
 if __name__ == "__main__":

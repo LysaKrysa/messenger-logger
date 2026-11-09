@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Instagram pilot
+
+- Connect one Instagram account and one Messenger account to the same private
+  Telegram chat. Each has its own session, controls, archive, and conversation topics.
+- Capture new Instagram DMs, photos, videos, voice messages, and observed unsends.
+  Recognize view-once and replay media and save the attachment when available.
+- Add platform selection to Telegram controls and private dashboard sign-in.
+  Refresh expired Instagram sessions from the administrator account page.
+
 ## Unreleased — administrator cookie editor
 
 - Add an explicit **Edit saved cookies** action to each administrator account

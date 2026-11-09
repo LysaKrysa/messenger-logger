@@ -8,7 +8,7 @@
 | :--- | :--- |
 | fbchat-v2 | `aa7abd0386ef1d4cabf8ce592d0f2cf308d8f4f6` |
 | mautrix-meta submodule | `cea2e38c9107be591bcd1b7a6562ccc72400ce23` |
-| Customized protocol version | `2.3.4-logger.1` |
+| Customized protocol version | `2.3.4-logger.2` |
 | Go toolchain | `1.26.10` |
 | Platform | Linux amd64 or arm64, CGO disabled |
 

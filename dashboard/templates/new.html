@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
-{% block breadcrumb %}New account{% endblock %}
+{% block breadcrumb %}{{ 'Connect Instagram' if platform == 'instagram' else 'New account' }}{% endblock %}
 {% block content %}
 <a class="back-link" href="{{ url_for('index') }}">{{ icon('back') }}All accounts</a>
-<div class="page-heading"><div><h1>Add an account</h1><p class="muted">Name this connection, then pair its Telegram destination.</p></div></div>
-<section class="panel narrow"><form method="post"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div class="page-heading"><div><h1>{{ 'Connect Instagram' if platform == 'instagram' else 'Add an account' }}</h1><p class="muted">Name this connection, then pair its Telegram destination.</p></div></div>
+<section class="panel narrow"><form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="platform" value="{{ platform }}">
   <label for="name">Account label</label><input id="name" name="name" placeholder="e.g. Alex" maxlength="80" required autofocus>
-  <label for="cookies">Messenger cookies <span class="optional">Optional for now</span></label><textarea id="cookies" name="cookies" rows="7" maxlength="131072" placeholder="Paste a cookie JSON object or browser export array" autocomplete="off" spellcheck="false" aria-describedby="cookie-note"></textarea>
-  <p class="field-note" id="cookie-note">Use cookies provided by the account owner. Saved credentials are encrypted. Administrators can explicitly load them for troubleshooting.</p>
+  <label for="cookies">{{ platform_names[platform] }} cookies <span class="optional">Optional for now</span></label><textarea id="cookies" name="cookies" rows="7" maxlength="131072" placeholder="Paste a cookie JSON object or browser export array" autocomplete="off" spellcheck="false" aria-describedby="cookie-note"></textarea>
+  <p class="field-note" id="cookie-note">{% if platform == 'instagram' %}Use <code>ds_user_id</code>, <code>sessionid</code>, and <code>csrftoken</code> from the owner’s signed-in Instagram session. You can pair the same private Telegram chat you use for Messenger. {% endif %}Saved credentials are encrypted. Administrators can explicitly load them for troubleshooting.</p>
   <div class="form-actions"><a class="button secondary" href="{{ url_for('index') }}">Cancel</a><button class="button primary">Create account</button></div>
 </form></section>
 {% endblock %}

@@ -18,7 +18,7 @@ RECONNECT_SECONDS = 900
 def reconnect_account(store, db, row, *, completed=False):
     """Re-read the fixed account binding inside the caller's transaction."""
     account = db.execute("SELECT * FROM accounts WHERE id=?", (row["account_id"],)).fetchone()
-    if (not account or not account["desired"] or not account["cookies"]
+    if (not account or account["platform"] != "facebook" or not account["desired"] or not account["cookies"]
             or account["chat_id"] != row["owner_chat"] or account["facebook_id"] != row["facebook_id"]
             or account["auth_epoch"] != row["auth_epoch"] or account["revision"] != row["account_revision"]):
         return None
@@ -82,7 +82,7 @@ class SetupInvites:
         ident, token, now = uuid.uuid4().hex, secrets.token_urlsafe(32), self.store.clock()
         with self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            account = db.execute("SELECT * FROM accounts WHERE chat_id=?", (user_id,)).fetchone()
+            account = self.store.paired_account(db, user_id, platform="facebook")
             if expected is not None and (not account or any(account[key] != expected[key] for key in ("id", "pair_epoch", "chat_id", "facebook_id"))):
                 raise DashboardError("Account pairing changed.")
             binding = dict(account or {})

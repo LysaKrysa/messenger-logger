@@ -76,12 +76,14 @@ class ConnectionAlerts:
         _, token = self.invites.create_reconnect(user_id, expected=expected)
         return self.origin + "/reconnect#" + token
 
-    def request(self, user_id, language):
-        row = self.store.user_account(user_id)
+    def request(self, user_id, language, *, platform=None):
+        row = self.store.user_account(user_id, platform=platform)
         if row is None:
             return tr(language, "not_paired")
+        if row["platform"] == "instagram":
+            return tr(language, "instagram_refresh")
         try:
-            url = self.issue(user_id)
+            url = self.issue(user_id, expected=row)
         except DashboardError:
             return tr(language, "reconnect_unavailable")
         return tr(language, "reconnect_link", url=url)
@@ -127,11 +129,14 @@ class ConnectionAlerts:
                     if not self.store.take_limit("offline-alert:" + row["id"], 3, 3600):
                         continue
                     language = self.store.telegram_language(row["chat_id"])
-                    try:
-                        url = self.issue(row["chat_id"])
-                        text = tr(language, "offline_alert") + "\n\n" + tr(language, "reconnect_link", url=url)
-                    except DashboardError:
-                        text = tr(language, "offline_alert") + "\n\n" + tr(language, "reconnect_unavailable")
+                    if row["platform"] == "instagram":
+                        text = tr(language, "instagram_offline") + "\n\n" + tr(language, "instagram_refresh")
+                    else:
+                        try:
+                            url = self.issue(row["chat_id"], expected=row)
+                            text = tr(language, "offline_alert") + "\n\n" + tr(language, "reconnect_link", url=url)
+                        except DashboardError:
+                            text = tr(language, "offline_alert") + "\n\n" + tr(language, "reconnect_unavailable")
                     self.api.json("sendMessage", {"chat_id": row["chat_id"], "text": text, "link_preview_options": {"is_disabled": True}})
             except Exception:
                 print("Connection alert could not be confirmed; no automatic resend.", flush=True)

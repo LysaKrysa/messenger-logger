@@ -19,13 +19,17 @@ if '--cleanup' in sys.argv:
     (root / 'cleanup-ran').write_text('offline cleanup')
     raise SystemExit(0)
 assert 'FB_SESSION_JSON' not in os.environ
+assert 'IG_SESSION_JSON' not in os.environ
 assert 'TELEGRAM_BOT_TOKEN' not in os.environ
 assert 'TELEGRAM_ACCOUNT_KEY' not in os.environ
 values = json.loads(Path(os.environ['LOGGER_CREDENTIALS_FILE']).read_text())
-cookies = json.loads(values['FB_SESSION_JSON'])
-assert cookies['xs'] == 'SYNTHETIC_OFFLINE'
-(root / 'identity').write_text(cookies['c_user'])
-(root / 'messenger-modern-status.log').write_text('Messenger listener ready for offline fixture.\\n')
+instagram = os.environ.get('LOGGER_PLATFORM') == 'instagram'
+session_env, identity, session_cookie = ('IG_SESSION_JSON', 'ds_user_id', 'sessionid') if instagram else ('FB_SESSION_JSON', 'c_user', 'xs')
+cookies = json.loads(values[session_env])
+assert cookies[session_cookie] == 'SYNTHETIC_OFFLINE'
+assert os.environ['LOGGER_E2EE'] == ('false' if instagram else 'true')
+(root / 'identity').write_text(cookies[identity])
+(root / 'messenger-modern-status.log').write_text(('Instagram' if instagram else 'Messenger') + ' listener ready for offline fixture.\\n')
 def stop(*args):
     (root / 'graceful-stop').write_text('SIGTERM received')
     raise SystemExit(0)
@@ -67,9 +71,15 @@ def main():
             for index in range(2):
                 ident = store.add_account('Offline ' + str(index), json.dumps({'c_user': str(111222333+index), 'xs': 'SYNTHETIC_OFFLINE', 'datr': 'SYNTHETIC_OFFLINE'}))
                 ids.append(ident)
-                store.claim_invite(store.invite(ident).split('start=')[1], 87654321+index, 'Offline fixture')
+                assert store.claim_invite(store.invite(ident).split('start=')[1], 87654321+index, 'Offline fixture')
                 store.action(ident, 'approve')
                 store.action(ident, 'start')
+            instagram = store.add_account('Offline Instagram', json.dumps({'ds_user_id': '111222335',
+                'sessionid': 'SYNTHETIC_OFFLINE', 'csrftoken': 'SYNTHETIC_OFFLINE'}), platform='instagram')
+            ids.append(instagram)
+            assert store.claim_invite(store.invite(instagram).split('start=')[1], 87654321, 'Offline fixture')
+            store.action(instagram, 'approve')
+            store.action(instagram, 'start')
             manager.run_once()
             # The web service can read the safe snapshot but not the root ledger.
             public_usage = root / "status/usage.json"
@@ -104,6 +114,8 @@ def main():
             assert (manager.path(ids[0])/'graceful-stop').is_file()
             assert manager.docker.inspect('messenger-account-' + ids[0]) is None
             assert manager.docker.inspect('messenger-account-' + ids[1])['State']['Running']
+            assert manager.docker.inspect('messenger-account-' + instagram)['State']['Running']
+            assert manager.status(instagram)['ready']
             manager.cleanup()
             assert (manager.path(ids[0])/'cleanup-ran').is_file()
             store.action(ids[0], 'remove')

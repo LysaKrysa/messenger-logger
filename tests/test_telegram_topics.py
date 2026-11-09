@@ -86,6 +86,14 @@ class TopicTests(unittest.TestCase):
         created = [params for method, params in self.api.calls if method == "createForumTopic"]
         self.assertEqual([item["name"] for item in created], ["Alex", "Alex (2)"])
 
+    def test_instagram_topics_are_separate_for_the_same_owner(self):
+        messenger_topic = self.router.topic("42", "Alex")
+        with contextlib.closing(EventStore(self.root / "instagram", started_at=1000, run_id="instagram-run")) as instagram_store:
+            instagram = TopicRouter(self.api, instagram_store, "123456", "7654321", title_prefix="Instagram")
+            self.assertNotEqual(instagram.topic("42", "Alex"), messenger_topic)
+        self.assertEqual([params["name"] for method, params in self.api.calls if method == "createForumTopic"],
+                         ["Alex", "Instagram · Alex"])
+
     def test_restart_reuses_persisted_topic_without_recreating(self):
         topic = self.router.topic("42", "Friends")
         self.store.close()

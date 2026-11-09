@@ -2,7 +2,10 @@
 {% block content %}
 <div class="page-heading">
   <div><h1>Overview</h1><p class="muted">Manage your accounts and their private Telegram destinations.</p></div>
-  <a class="button primary" href="{{ url_for('new_account') }}">{{ icon('plus') }}Add account</a>
+  <div class="button-group">
+    <a class="button secondary" href="{{ url_for('new_account', platform='instagram') }}">Connect Instagram</a>
+    <a class="button primary" href="{{ url_for('new_account') }}">{{ icon('plus') }}Add account</a>
+  </div>
 </div>
 <dl class="metrics" aria-label="Workspace summary">
   <div class="metric"><dt>Accounts</dt><dd>{{ accounts|length }}<small> / {{ capacity }}</small></dd><dd class="metric-note">Separate sessions and storage</dd></div>
@@ -17,7 +20,7 @@
     {% for a in accounts %}
     <a class="account-row" href="{{ url_for('account',ident=a.id) }}">
       <span class="avatar" aria-hidden="true">{{ a.name[:1]|upper }}</span>
-      <span class="account-name"><strong>{{ a.name }}</strong><span>{% if a.chat_id %}Telegram paired{% elif a.pending_chat %}Pairing awaiting approval{% else %}Telegram not paired{% endif %}</span></span>
+      <span class="account-name"><strong>{{ a.name }}</strong><span>{{ platform_names[a.platform] }} · {% if a.chat_id %}Telegram paired{% elif a.pending_chat %}Pairing awaiting approval{% else %}Telegram not paired{% endif %}</span></span>
       <span class="status {% if a.status.get('ready') and not a.status.get('stale') %}online{% elif a.status.get('state') == 'attention' or a.pending_chat %}warning{% endif %}"><span class="dot"></span>{% if a.status.get('stale') %}Awaiting manager{% elif a.status.get('ready') %}Connected{% elif a.status.get('state') == 'attention' %}Needs attention{% elif a.status.get('state') == 'running' %}Connecting{% else %}{{ a.status.get('state','Not started')|replace('_',' ')|capitalize }}{% endif %}</span>
       {{ icon('chevron','row-arrow') }}
     </a>

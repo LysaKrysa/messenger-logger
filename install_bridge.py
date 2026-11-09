@@ -10,19 +10,19 @@ import subprocess
 import sys
 import tempfile
 
-VERSION = "2.3.4-logger.1"
+VERSION = "2.3.4-logger.2"
 SOURCE_REVISION = "aa7abd0386ef1d4cabf8ce592d0f2cf308d8f4f6"
 META_REVISION = "cea2e38c9107be591bcd1b7a6562ccc72400ce23"
 # Go 1.26.10, CGO disabled, trimpath, no VCS/build ID.
 DIGESTS = {
-    "amd64": "18624127886cb39de1cd2a8986b612eb8a57139ff0c238d860f89e6e5283c286",
-    "arm64": "7f9626bd8b9ecba5448c5ec7ea3227dc2d6b1ba43f6a0f2e4b7d6df88c4428f5",
+    "amd64": "81fd4b1bc0ef4710a6e1ff9de8b426623386ada987db3142547c675628f78f35",
+    "arm64": "0261e78e5e5e6dea9ce82f4bdb31caa39217ae2112d16ddefa0755fb859a6095",
 }
 UPSTREAM_DIGESTS = {
     "amd64": "6de0ce8db4986da2fd471385d63b61a5334084edb78bc6de2f53ecea6500189d",
     "arm64": "4d61087632c2c157294502265cb1e8807c0c5ac9c3d8addca2c109dd1eec1544",
 }
-CAPABILITIES = {"newClient", "connect", "connectE2EE", "isConnected", "events", "structuredConnectionStatus", "viewOnceMedia", "contactLookup"}
+CAPABILITIES = {"newClient", "connect", "connectE2EE", "isConnected", "events", "structuredConnectionStatus", "viewOnceMedia", "contactLookup", "instagramDMs"}
 
 
 def install(destination: Path, source: Path):
