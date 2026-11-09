@@ -1,6 +1,9 @@
 "use strict";
 (() => {
   const $ = id => document.getElementById(id);
+  const instagram = document.body.dataset.provider === "Instagram";
+  const provider = instagram ? "Instagram" : "Facebook";
+  const apiBase = instagram ? "/instagram/api/" : "/setup/api/";
   let csrf = "", active = false, ready = false, frameBusy = false, finished = false, finishing = false, viewGeneration = 0, viewFailures = 0, reconnectTimer = null, fallbackTimer = null, statusBusy = false, progressRequest = null, compatibility = false, errorKind = "";
   let invitation = location.hash.slice(1), composing = false, typingBoxOpen = false;
   const compactKeyboard = matchMedia("(max-width: 760px), (pointer: coarse)");
@@ -50,7 +53,7 @@
     const timeout = setTimeout(() => controller.abort(), action === "start" ? 50000 : action === "finish" ? 45000 : 20000);
     let response, data;
     try {
-      response = await fetch("/setup/api/" + action, {method: body === undefined ? "GET" : "POST", credentials: "same-origin", cache: "no-store", signal: controller.signal, headers: {"Content-Type": "application/json", ...(anonymous ? {} : {"X-Setup-CSRF": auth})}, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
+      response = await fetch(apiBase + action, {method: body === undefined ? "GET" : "POST", credentials: "same-origin", cache: "no-store", signal: controller.signal, headers: {"Content-Type": "application/json", ...(anonymous ? {} : {"X-Setup-CSRF": auth})}, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
       data = await response.json();
     } catch (error) { throw new Error("The connection was interrupted. Please try again."); }
     finally { clearTimeout(timeout); }
@@ -65,11 +68,12 @@
     csrf = data.csrf;
     finished = data.state === "completed";
     const reconnect = data.purpose === "reconnect";
-    const waiting = reconnect && !data.confirmed && !finished;
+    const waiting = (reconnect || instagram) && !data.confirmed && !finished;
     $("welcome").hidden = true; $("facebook").hidden = finished || waiting; $("telegram").hidden = !finished;
     $("reconnect-confirm").hidden = !waiting;
     if (waiting) {
       active = false; stopView(); resetInput();
+      if (instagram) $("confirmation-code").textContent = data.confirmation_code;
       if (data.telegram_url && /^https:\/\/t\.me\/[A-Za-z0-9_]+$/.test(data.telegram_url)) $("reconnect-telegram").href = data.telegram_url;
     }
     $("step-welcome").classList.remove("current");
@@ -78,8 +82,13 @@
       active = false; setFinishing(false); stopView(); resetInput(); hideError();
       $("telegram-invite").hidden = !data.telegram_url;
       if (data.telegram_url && /^https:\/\/t\.me\/[A-Za-z0-9_]+(?:\?start=[A-Za-z0-9_-]+)?$/.test(data.telegram_url)) $("telegram-invite").href = data.telegram_url;
-      $("pairing-status").textContent = ({waiting: "Open Telegram above and press Start to connect your private chat.", pending_approval: "Telegram connected. Your administrator will approve your identity and start the logger.", approved: "Your Telegram destination is approved. Your administrator controls when capture starts.", expired: "The Telegram invitation expired. Ask your administrator for a new Telegram invitation."})[data.pairing];
-      if (reconnect) {
+      $("pairing-status").textContent = ({waiting: "Open Telegram above and press Start to connect your private chat.", pending_approval: "Telegram connected. Your administrator will approve your identity and start the logger.", approved: "Your Telegram destination is approved. Your administrator controls when capture starts.", expired: "The Telegram invitation expired. Ask your administrator for a new Telegram invitation.", instagram_started: "Your Instagram logger is starting. Use /status instagram in Telegram to check the connection."})[data.pairing];
+      if (instagram) {
+        $("completion-title").textContent = "Instagram connection saved";
+        $("completion-description").textContent = "The temporary browser has closed. Instagram will use your already paired Telegram chat.";
+        $("telegram-invite").textContent = "Return to Telegram";
+        $("completion-note").textContent = "Use /panel instagram in the bot to view your settings and activity.";
+      } else if (reconnect) {
         $("completion-title").textContent = "Messenger session updated";
         $("completion-description").textContent = "Your existing account was refreshed and the temporary browser has closed.";
         $("telegram-invite").textContent = "Return to Telegram";
@@ -113,7 +122,7 @@
     if (screen.getAttribute("width") !== String(data.width) || screen.getAttribute("height") !== String(data.height)) { screen.width = data.width; screen.height = data.height; }
     $("remote-site").textContent = data.site; ready = data.ready;
     if (errorKind === "view") hideError();
-    $("facebook-ready").textContent = finishing ? "Saving this connection and preparing Telegram…" : ready ? "A signed-in session was detected. Confirm below when you have finished Facebook's checks." : "Finish signing in and complete any Facebook checks. Then confirm this connection here.";
+    $("facebook-ready").textContent = finishing ? "Saving this connection and preparing Telegram…" : ready ? `A signed-in session was detected. Confirm below when you have finished ${provider}'s checks.` : instagram ? "Finish signing in and open Instagram Home or your inbox. Then confirm this connection here." : "Finish signing in and complete any Facebook checks. Then confirm this connection here.";
     $("finish-facebook").disabled = finishing || !ready || !$("approve-session").checked;
   }
   async function viewStatus() {
@@ -160,7 +169,7 @@
       if (attempt >= 2) { compatibility = true; startView(); }
       else reconnectTimer = setTimeout(() => startView(attempt + 1), 400 * (attempt + 1));
     };
-    screen.src = "/setup/api/stream?view=" + generation;
+    screen.src = apiBase + "stream?view=" + generation;
     screen.hidden = false; $("remote-placeholder").hidden = true;
     viewStatus();
   }
@@ -173,7 +182,7 @@
     hideError(); $("start-browser").disabled = true; $("start-browser").textContent = "Opening your browser…";
     try { await api("start", {mobile: matchMedia("(max-width: 760px)").matches}); if (auth !== csrf || finished) return; active = true; compatibility = false; await viewStatus(); startView(); }
     catch (error) { if (auth === csrf) { await status(false); if (!finished) showError(error.message); } }
-    finally { if (auth === csrf) { $("start-browser").disabled = finishing; $("start-browser").textContent = "Open Facebook ↗"; } }
+    finally { if (auth === csrf) { $("start-browser").disabled = finishing; $("start-browser").textContent = `Open ${provider} ↗`; } }
   });
   function input(data) {
     if (!active || finished || finishing) return;

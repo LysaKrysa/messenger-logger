@@ -72,7 +72,8 @@ def create_app(controller=None, *, secret=None):
             return jsonify(error="Invalid browser request."), 400
         try:
             if action == "start":
-                result = controller.start(ident, data.get("expires"), data.get("mobile") is True)
+                result = controller.start(ident, data.get("expires"), data.get("mobile") is True,
+                                          platform=data.get("platform", "facebook"))
             elif action == "stop":
                 controller.stop(ident)
                 result = {}

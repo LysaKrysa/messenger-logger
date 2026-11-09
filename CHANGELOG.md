@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Instagram sign-in links
+
+- Add `/instagram` to the shared Telegram bot. Approved Messenger owners can
+  request a single-use Instagram link and confirm it in the same chat by
+  comparing a code with the invitation page.
+- Open Instagram in the isolated sign-in browser and save the approved session
+  for that Telegram owner. Enforce one Instagram slot per owner and show
+  outstanding invitations in the administrator's setup link list.
+
 ## Unreleased — Instagram pilot
 
 - Connect one Instagram account and one Messenger account to the same private

@@ -109,6 +109,18 @@ TEXT["en"].update({
     "instagram_offline": "⚠️ Your Instagram logger is offline. Check /status instagram for its connection state.",
     "instagram_refresh": "If your Instagram session expired, sign in to Instagram again and ask the administrator to update the saved Instagram session.",
     "instagram_help": "Instagram: /dashboard instagram opens your Instagram profile. Add instagram to an account command, for example /status instagram. /disconnect instagram disconnects only Instagram.",
+    "instagram_link": "Connect Instagram using this one-time link. It expires in 15 minutes.\n\n{url}\n\nOpen it yourself and compare the code on the page with the confirmation in this chat. Sign in to your own account in the temporary browser.",
+    "instagram_needs_pairing": "An approved Messenger pairing is required to connect Instagram. Ask your administrator for a setup invitation.",
+    "instagram_already_paired": "This Telegram account already has an Instagram connection or a pairing awaiting approval. Use /dashboard instagram to open a connected account.",
+    "instagram_slot_in_use": "You already set up an Instagram account. Ask your administrator to reconnect it or remove the old account before setting up another.",
+    "instagram_link_limit": "You can request up to three Instagram links per hour. Try again later.",
+    "instagram_link_capacity": "All account slots are in use or reserved by active invitations. Contact your administrator.",
+    "instagram_link_unavailable": "Instagram setup is unavailable. Contact your administrator.",
+    "instagram_confirmation": "Compare this Instagram setup code with the code on the invitation page.\n\n{code}\n\nApprove only if the codes match and you opened the page yourself.",
+    "instagram_approve": "The codes match",
+    "instagram_approved": "Approved. Return to the invitation page to sign in to Instagram.",
+    "instagram_rejected": "Instagram setup rejected. The link is disabled.",
+    "instagram_expired": "This Instagram confirmation is unavailable, expired or already used.",
     "reconnect_link": "Refresh your existing Messenger session:\n{url}\n\nThis single-use link expires in 15 minutes. After opening it, confirm the request in this Telegram chat before signing in. Only your originally approved Messenger account can be reconnected; your Telegram pairing stays unchanged. Use /reconnect if you need a fresh link.",
     "reconnect_unavailable": "A reconnect link is available only for your existing account after a sustained outage. Online, paused or unlinked accounts cannot request one. At most three links can be issued per hour. Check /status or contact the administrator.",
     "reconnect_confirmation": "A one-time reconnect link was opened. If that was you, approve below to open the temporary Facebook browser. Only your original Messenger account can be refreshed. Reject this request if you did not open the link.",
@@ -141,6 +153,7 @@ TEXT["en"].update({
         "/pause — pause capture for your account\n"
         "/resume — resume new events after connection\n"
         "/reconnect — one-time session refresh for your offline account\n"
+        "/instagram — one-time link to connect Instagram after Messenger is paired\n"
         "/mode deleted — forward deleted messages\n"
         "/mode all — forward all supported chat events\n"
         "/media on|off — attachment downloads\n"
@@ -165,6 +178,18 @@ TEXT["pl"].update({
     "instagram_offline": "⚠️ Twój rejestrator Instagrama utracił połączenie. Sprawdź jego stan poleceniem /stan instagram.",
     "instagram_refresh": "Jeśli sesja Instagrama wygasła, zaloguj się ponownie na Instagramie i poproś administratora o odnowienie zapisanej sesji.",
     "instagram_help": "Instagram: /panel instagram otwiera profil Instagrama. Dodaj instagram do polecenia konta, np. /stan instagram. /odlacz instagram odłącza tylko Instagram.",
+    "instagram_link": "Połącz Instagram przez ten jednorazowy link. Link wygasa po 15 minutach.\n\n{url}\n\nOtwórz go samodzielnie i porównaj kod na stronie z potwierdzeniem w tym czacie. Zaloguj się na własne konto w tymczasowej przeglądarce.",
+    "instagram_needs_pairing": "Aby połączyć Instagram, potrzebujesz zatwierdzonego połączenia z Messengerem. Poproś administratora o zaproszenie.",
+    "instagram_already_paired": "Z tym kontem Telegrama połączono już Instagram lub połączenie czeka na zatwierdzenie. Polecenie /panel instagram otwiera panel połączonego konta.",
+    "instagram_slot_in_use": "Masz już skonfigurowane konto Instagram. Poproś administratora o ponowne połączenie lub usunięcie poprzedniego konta przed dodaniem nowego.",
+    "instagram_link_limit": "Możesz poprosić o maksymalnie trzy linki do Instagrama na godzinę. Spróbuj ponownie później.",
+    "instagram_link_capacity": "Wszystkie miejsca są zajęte lub zarezerwowane przez aktywne zaproszenia. Skontaktuj się z administratorem.",
+    "instagram_link_unavailable": "Konfiguracja Instagrama jest niedostępna. Skontaktuj się z administratorem.",
+    "instagram_confirmation": "Porównaj ten kod konfiguracji Instagrama z kodem na stronie zaproszenia.\n\n{code}\n\nZatwierdź tylko wtedy, gdy kody się zgadzają i to Ty otworzyłeś stronę.",
+    "instagram_approve": "Kody się zgadzają",
+    "instagram_approved": "Zatwierdzono. Wróć do strony zaproszenia, aby zalogować się na Instagramie.",
+    "instagram_rejected": "Odrzucono połączenie Instagrama. Link został wyłączony.",
+    "instagram_expired": "To potwierdzenie Instagrama jest niedostępne, wygasło lub zostało już użyte.",
     "reconnect_link": "Odnów sesję swojego istniejącego konta Messenger:\n{url}\n\nTen jednorazowy link wygasa po 15 minutach. Po otwarciu potwierdź żądanie w tym czacie Telegrama przed logowaniem. Możesz ponownie połączyć tylko pierwotnie zatwierdzone konto Messenger. Połączenie z Telegramem pozostaje bez zmian. /polacz pozwala poprosić o nowy link.",
     "reconnect_unavailable": "Link ponownego połączenia jest dostępny tylko dla Twojego istniejącego konta po dłuższej utracie połączenia. Nie można go uzyskać dla konta działającego, wstrzymanego ani odłączonego. Limit wynosi trzy linki na godzinę. Sprawdź /stan lub skontaktuj się z administratorem.",
     "reconnect_confirmation": "Otwarto jednorazowy link ponownego połączenia. Jeśli to Ty, potwierdź poniżej, aby otworzyć tymczasową przeglądarkę Facebooka. Można odnowić tylko pierwotne konto Messenger. Odrzuć żądanie, jeśli link został otwarty przez kogoś innego.",
@@ -197,6 +222,7 @@ TEXT["pl"].update({
         "/pauza — wstrzymaj zapis dla swojego konta\n"
         "/wznow — wznów zapis nowych zdarzeń po połączeniu\n"
         "/polacz — jednorazowe odnowienie sesji konta po utracie połączenia\n"
+        "/instagram — jednorazowy link do połączenia Instagrama po zatwierdzeniu Messengera\n"
         "/tryb usuniete — przesyłaj usunięte wiadomości\n"
         "/tryb wszystkie — przesyłaj wszystkie obsługiwane zdarzenia\n"
         "/media wlacz|wylacz — pobieranie załączników\n"

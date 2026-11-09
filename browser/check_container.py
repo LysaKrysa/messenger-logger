@@ -1,4 +1,4 @@
-"""Real Chromium isolation/input smoke check. Never opens Facebook or Telegram."""
+"""Real Chromium isolation and sign-in boundary checks using only local fixtures."""
 import base64
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,9 +27,22 @@ class Fixture(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
-        self.server.seen.add((self.headers.get("Host"), path))
+        host = self.headers.get("Host")
+        self.server.seen.add((host, path))
         content_type = "text/html"
-        if path == "/":
+        cookies = ()
+        if host == "www.instagram.com" and path == "/accounts/login/":
+            body = b'<title>Synthetic Instagram sign-in</title><a href="/direct/inbox/">Synthetic Inbox</a>'
+            cookies = ("ds_user_id=54321", "sessionid=SYNTHETIC_IG_SESSION", "csrftoken=SYNTHETIC_IG_CSRF")
+        elif host == "www.instagram.com" and path == "/direct/inbox/":
+            body = b"""<title>Synthetic Instagram inbox</title>
+<script src="https://static.cdninstagram.com/synthetic-instagram.js"></script>
+<script src="https://www.facebook.com/unrelated-instagram.js"></script>
+<script src="https://instagram.com.evil.example/unrelated-instagram.js"></script>"""
+        elif path == "/synthetic-instagram.js":
+            content_type = "application/javascript"
+            body = b"globalThis.syntheticInstagramAsset = true;"
+        elif path == "/":
             body = b"""<title>Offline HTTPS proxy fixture</title><h1>Synthetic local egress test</h1>
 <script>
 globalThis.syntheticChallenge = {script:false, frame:false, alternative:false};
@@ -88,6 +101,8 @@ image.src = 'https://cdn.arkoselabs.com/fc/assets/fixture.gif'; document.body.ap
             body = b"globalThis.syntheticUnrelated = true;"
         self.send_response(200)
         self.send_header("Content-Type", content_type)
+        for cookie in cookies:
+            self.send_header("Set-Cookie", cookie + "; Path=/; Secure; HttpOnly; SameSite=Lax")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -175,12 +190,23 @@ def main():
                         assert request not in fixture.seen, "An unrelated Google request was allowed."
                     for host in ("evilarkoselabs.com", "meta-api.arkoselabs.com.evil.example", "other-tenant-api.arkoselabs.com"):
                         assert (host, "/fixture.js") not in fixture.seen, "An Arkose lookalike domain was allowed."
+                    browser.close()
+                    browser = DockerBrowser(uuid.uuid4().hex, time.time() + 120, proxy_path=path,
+                                            policy_path=Path(__file__).resolve().with_name("seccomp.json"),
+                                            offline_check=True, platform="instagram")
+                    network = browser.call("smoke-network")
+                    assert network["title"] == "Synthetic Instagram inbox" and network["ready"]
+                    assert browser.call("frame", {"metadata_only": True})["ready"]
+                    assert ("www.instagram.com", "/accounts/login/") in fixture.seen
+                    assert ("static.cdninstagram.com", "/synthetic-instagram.js") in fixture.seen
+                    assert ("www.facebook.com", "/unrelated-instagram.js") not in fixture.seen
+                    assert ("instagram.com.evil.example", "/unrelated-instagram.js") not in fixture.seen
             finally:
                 browser.close()
                 proxy.shutdown()
                 fixture.shutdown()
                 fixture.server_close()
-    print("Sandboxed browser/input/isolated HTTPS proxy and synthetic Google/Arkose cross-domain script/frame/API/image checks passed. No live CAPTCHA, Facebook login or Telegram send.")
+    print("Sandboxed browser, HTTPS proxy, synthetic verification resources and Instagram sign-in boundary passed.")
 
 
 if __name__ == "__main__":

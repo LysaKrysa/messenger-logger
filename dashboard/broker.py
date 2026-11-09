@@ -129,7 +129,7 @@ class PairingReceiver:
         if isinstance(callback, dict):
             if isinstance(callback.get("data"), str) and callback["data"].startswith(("pla.", "plr.")):
                 self.portal.callback(callback)
-            elif isinstance(callback.get("data"), str) and callback["data"].startswith(("rca.", "rcr.")):
+            elif isinstance(callback.get("data"), str) and callback["data"].startswith(("rca.", "rcr.", "iga.", "igr.")):
                 self.connection_alerts.confirm(callback)
             elif isinstance(callback.get("data"), str) and callback["data"].startswith(PREFIXES):
                 self.history.callback(callback)
@@ -168,6 +168,8 @@ class PairingReceiver:
             reply = self.portal.request(chat_id, language, platform=platform) if not parameter or canonical == "start" else tr(language, "command_usage")
         elif canonical == "reconnect":
             reply = self.connection_alerts.request(chat_id, language, platform=platform) if not parameter else tr(language, "command_usage")
+        elif canonical == "instagram":
+            reply = self.connection_alerts.request_instagram(chat_id, language) if not parameter else tr(language, "command_usage")
         elif canonical in CONTROLS:
             reply = handle_control(self.store, chat_id, canonical, parameter, language, platform=platform)
         elif canonical in {"chats", "deliveries"}:
@@ -205,6 +207,8 @@ class PairingReceiver:
             return
         try:
             params = {"chat_id": chat_id, "text": reply, "disable_notification": True}
+            if canonical == "instagram":
+                params["link_preview_options"] = {"is_disabled": True}
             if markup:
                 params["reply_markup"] = markup
             topic = message.get("message_thread_id")

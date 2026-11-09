@@ -4,7 +4,7 @@ import os
 import re
 from urllib.parse import urlsplit
 
-from .setup_store import SetupInvites
+from .setup_store import InstagramLinkUnavailable, SetupInvites
 from .store import DashboardError
 from telegram_i18n import tr
 
@@ -76,6 +76,13 @@ class ConnectionAlerts:
         _, token = self.invites.create_reconnect(user_id, expected=expected)
         return self.origin + "/reconnect#" + token
 
+    def request_instagram(self, user_id, language):
+        try:
+            _, token = self.invites.create_instagram(user_id)
+        except InstagramLinkUnavailable as exc:
+            return tr(language, str(exc))
+        return tr(language, "instagram_link", url=self.origin + "/instagram#" + token)
+
     def request(self, user_id, language, *, platform=None):
         row = self.store.user_account(user_id, platform=platform)
         if row is None:
@@ -91,21 +98,25 @@ class ConnectionAlerts:
     def confirmations(self):
         for row in self.invites.confirmations():
             language = self.store.telegram_language(row["owner_chat"])
+            purpose = row["purpose"]
             keyboard = {"inline_keyboard": [[
-                {"text": tr(language, "reconnect_approve"), "callback_data": self.invites.confirmation_data(row)},
+                {"text": tr(language, purpose + "_approve"), "callback_data": self.invites.confirmation_data(row)},
                 {"text": tr(language, "reconnect_reject"), "callback_data": self.invites.confirmation_data(row, False)},
             ]]}
+            text = tr(language, purpose + "_confirmation", code=row["confirm_code"])
             try:
-                self.api.json("sendMessage", {"chat_id": row["owner_chat"], "text": tr(language, "reconnect_confirmation"),
+                self.api.json("sendMessage", {"chat_id": row["owner_chat"], "text": text,
                                                "reply_markup": keyboard, "link_preview_options": {"is_disabled": True}})
             except Exception:
-                print("Reconnect confirmation could not be confirmed; no automatic resend.", flush=True)
+                print("Setup confirmation delivery could not be confirmed; no automatic resend.", flush=True)
 
     def confirm(self, query):
         sender, message = query.get("from"), query.get("message")
         query_id, bot = query.get("id"), self.store.bot()
         if not isinstance(query_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", query_id):
             return
+        data = query.get("data")
+        purpose = "instagram" if isinstance(data, str) and data.startswith(("iga.", "igr.")) else "reconnect"
         language, outcome = "pl", "unavailable"
         if isinstance(sender, dict) and type(sender.get("id")) is int:
             language = self.store.telegram_language(sender["id"])
@@ -114,9 +125,10 @@ class ConnectionAlerts:
             if (sender.get("is_bot") is False and isinstance(chat, dict) and chat.get("type") == "private"
                     and type(chat.get("id")) is int and chat["id"] == sender["id"]
                     and isinstance(author, dict) and bot and author.get("is_bot") is True and author.get("id") == bot["id"]):
-                outcome = self.invites.confirm(sender["id"], query.get("data"))
+                outcome = self.invites.confirm(sender["id"], data)
         try:
-            self.api.json("answerCallbackQuery", {"callback_query_id": query_id, "text": tr(language, "reconnect_expired" if outcome == "unavailable" else "reconnect_" + outcome), "show_alert": True, "cache_time": 0})
+            key = purpose + "_" + ("expired" if outcome == "unavailable" else outcome)
+            self.api.json("answerCallbackQuery", {"callback_query_id": query_id, "text": tr(language, key), "show_alert": True, "cache_time": 0})
         except Exception:
             pass
 

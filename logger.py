@@ -103,10 +103,13 @@ def parse_cookies(raw, *, platform="facebook"):
         raise ConfigurationError("The " + identity + " cookie must contain a numeric account ID.")
     allowed = set(required) | optional
     parsed = {key: item for key, item in value.items() if key in allowed}
-    if platform == "instagram" and (
-            not 0 < int(parsed[identity]) < 2**64
-            or any(not re.fullmatch(r"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*", item) for item in parsed.values())):
-        raise ConfigurationError("Instagram cookies contain an invalid account ID or cookie value.")
+    if platform == "instagram":
+        # Browser exports may carry quoted routing cookies such as rur. Only
+        # safe header values reach the native client. Routing cookies are optional.
+        cookie_octets = re.compile(r"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*")
+        if not 0 < int(parsed[identity]) < 2**64 or any(not cookie_octets.fullmatch(parsed[name]) for name in required):
+            raise ConfigurationError("Instagram cookies contain an invalid account ID or cookie value.")
+        parsed = {name: item for name, item in parsed.items() if cookie_octets.fullmatch(item)}
     return parsed
 
 
