@@ -127,9 +127,10 @@ IDs, pairings, and owner sessions. Active workers reconnect with the new image.
    JSON with `ds_user_id`, `sessionid`, and `csrftoken` from that browser
    session, or paste the cookie export array. Save it through the HTTPS
    dashboard and keep the cookie values out of Telegram and support chats.
-2. Choose **Create invitation**, open it in your existing private Telegram
-   chat, then **Approve pairing** and **Start** on the account page. Each
-   Telegram owner can pair one Instagram account and one Messenger account.
+2. Choose **Create invitation** and open it in your existing private Telegram
+   chat. Reopen the Instagram account from **All accounts**, then choose
+   **Approve pairing** and **Start**. Each Telegram owner can pair one Instagram
+   account and one Messenger account.
 3. Wait for **Connected**. Have a second account send a fresh text DM and
    unsend it. With **Deleted messages only**, the unsend should deliver one
    notification in an **Instagram ·** topic.

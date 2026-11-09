@@ -41,7 +41,7 @@ def verify_instagram(page, origin, store, owner):
     assert "SYNTHETIC_INSTAGRAM_PRIVATE" not in page.content()
     page.get_by_role("button", name="Create invitation").click()
     assert store.claim_invite(page.locator("#invite").input_value().split("start=")[1], owner, "@synthetic_jordan")
-    page.reload()
+    page.goto(origin + "/accounts/" + ident)
     page.get_by_role("button", name="Approve pairing").click()
     page.get_by_role("button", name="Start", exact=True).click()
     assert store.account(ident)["desired"]
