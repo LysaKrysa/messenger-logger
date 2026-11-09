@@ -17,11 +17,24 @@ class HistoryCommands:
         self.store, self.api, self.deliveries = store, api, deliveries
         self.conversations = deliveries.conversations
 
-    def menu(self, owner, command, language):
-        row = self.store.user_account(owner)
+    def instagram_scope(self, row):
+        return ".i" + self.store.secret("history:" + row["id"] + ":" + str(row["pair_epoch"]))[:12]
+
+    def scoped_reply(self, row, reply):
+        text, markup = reply
+        if row["platform"] == "instagram":
+            scope = self.instagram_scope(row)
+            for buttons in markup["inline_keyboard"]:
+                for item in buttons:
+                    item["callback_data"] += scope
+            text = "Instagram · " + text
+        return text, markup
+
+    def menu(self, owner, command, language, *, platform=None):
+        row = self.store.user_account(owner, platform=platform)
         if row is None:
             return tr(language, "not_paired"), None
-        return self.chats(row, language) if command == "chats" else self.history(row, language)
+        return self.scoped_reply(row, self.chats(row, language) if command == "chats" else self.history(row, language))
 
     def chats(self, row, lang, offset=0):
         values = self.conversations.rows(row, offset, 10)
@@ -112,17 +125,21 @@ class HistoryCommands:
                  and isinstance(chat, dict) and chat.get("type") == "private" and type(chat.get("id")) is int and chat["id"] == owner
                  and isinstance(author, dict) and bot and author.get("id") == bot["id"] and author.get("is_bot") is True
                  and type(mid) is int and 0 < mid < 2**53 and (topic is None or type(topic) is int and 0 < topic < 2**53))
-        row = self.store.user_account(owner) if valid else None
-        if row is None:
+        data = query.get("data", "")
+        if not isinstance(data, str) or len(data) > 64:
+            self.answer(query_id, tr(lang, "menu_unavailable"), True)
+            return
+        scope = re.search(r"\.i[a-f0-9]{12}\Z", data)
+        row = self.store.user_account(owner, platform="instagram" if scope else "facebook") if valid else None
+        if row is None or scope and scope.group() != self.instagram_scope(row):
             self.answer(query_id, tr(lang, "menu_denied"), True)
             return
+        if scope:
+            data = data[:scope.start()]
         if not self.store.take_limit("history-menu:" + str(owner), 30, 60):
             self.answer(query_id, tr(lang, "download_wait"), True)
             return
-        data = query.get("data", "")
         try:
-            if not isinstance(data, str) or len(data) > 64:
-                raise DashboardError("Invalid action.")
             if re.fullmatch(r"(?:ch|dh)\.[0-9]{1,4}", data):
                 action, raw = data.split(".")
                 offset = int(raw)
@@ -159,6 +176,7 @@ class HistoryCommands:
             return
         self.answer(query_id, tr(lang, "menu_updated"))
         try:
+            text, markup = self.scoped_reply(row, (text, markup))
             self.api.json("editMessageText", {"chat_id": owner, "message_id": mid, "text": text, "reply_markup": markup})
         except (RuntimeError, OSError):
             pass  # A lost UI response must never repeat the confirmed action.

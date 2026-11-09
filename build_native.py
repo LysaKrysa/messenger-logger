@@ -12,7 +12,7 @@ import tempfile
 
 UPSTREAM = "aa7abd0386ef1d4cabf8ce592d0f2cf308d8f4f6"
 META = "cea2e38c9107be591bcd1b7a6562ccc72400ce23"
-VERSION = "2.3.4-logger.1"
+VERSION = "2.3.4-logger.2"
 
 
 def run(*args, cwd=None, env=None):
@@ -46,10 +46,52 @@ def patch(source, additions):
     replace_once(events, 'func (c *Client) handleTable(tbl *table.LSTable) {\n', 'func (c *Client) handleTable(tbl *table.LSTable) {\n\tc.emitLoggerContacts(tbl)\n')
     replace_once(client, '\tif initialTable != nil {\n', '\tc.emitLoggerContacts(initialTable)\n\tif initialTable != nil {\n')
     replace_once(main, 'var bridgeVersion = "2.3.4"', 'var bridgeVersion = "' + VERSION + '"')
-    replace_once(main, '\t"structuredConnectionStatus",\n', '\t"structuredConnectionStatus",\n\t"viewOnceMedia",\n\t"contactLookup",\n')
+    replace_once(main, '\t"structuredConnectionStatus",\n', '\t"structuredConnectionStatus",\n\t"viewOnceMedia",\n\t"contactLookup",\n\t"instagramDMs",\n')
     replace_once(main, '\tcase "isConnected":\n', '\tcase "getUserInfo":\n\t\tif client == nil { fail(req.ID, fmt.Errorf("client not initialised")); return }\n\t\tvar p struct { UserID int64 `json:"userId"` }\n\t\tif err := json.Unmarshal(req.Params, &p); err != nil { fail(req.ID, err); return }\n\t\tcontact, err := client.LoggerContact(p.UserID)\n\t\tif err != nil { fail(req.ID, err); return }\n\t\tok(req.ID, contact)\n\n\tcase "isConnected":\n')
     for name in ("logger_media.go", "logger_media_test.go"):
         shutil.copyfile(additions / name, source / "bridge" / name)
+    replace_once(main, 'func handle(req *request) {\n', '''func handle(req *request) {
+	if instagram != nil && req.Method != "hello" {
+		instagram.handle(req)
+		return
+	}
+''')
+    replace_once(main, '\t\tc, err := bridge.NewClient(&cfg)\n', '''		if cfg.Platform == "instagram" {
+			ig, err := newInstagram(&cfg)
+			if err != nil {
+				fail(req.ID, err)
+				return
+			}
+			instagram = ig
+			ok(req.ID, map[string]any{"ready": true})
+			return
+		}
+		c, err := bridge.NewClient(&cfg)
+''')
+    replace_once(main, '\tdefer disconnectClient()\n', '\tdefer disconnectClient()\n\tdefer disconnectInstagram()\n')
+    media = source / "bridge/media.go"
+    replace_once(media, '\t"fbcdn.net",\n', '\t"fbcdn.net",\n\t"cdninstagram.com",\n')
+    replace_once(media, 'func (c *Client) DownloadMedia(rawURL string) ([]byte, error) {\n', '''func (c *Client) DownloadMedia(rawURL string) ([]byte, error) {
+	return DownloadMediaURL(rawURL)
+}
+
+// DownloadMediaURL downloads from the allowlisted Meta CDNs without session cookies.
+func DownloadMediaURL(rawURL string) ([]byte, error) {
+''')
+    for name in ("instagram.go", "instagram_test.go"):
+        shutil.copyfile(additions / name, source / name)
+    # Instameow adds two dependencies already locked in the pinned Meta module.
+    dependencies = ("github.com/apache/thrift", "github.com/google/flatbuffers")
+    requirements = [line for line in (source / "meta/go.mod").read_text().splitlines()
+                    if line.lstrip().startswith(tuple(name + " " for name in dependencies))]
+    sums = [line for line in (source / "meta/go.sum").read_text().splitlines()
+            if line.startswith(tuple(name + " " for name in dependencies))]
+    if len(requirements) != 2 or len(sums) != 4:
+        raise RuntimeError("Pinned Instagram dependency locks changed.")
+    anchor = "\tfilippo.io/edwards25519 v1.2.0 // indirect\n"
+    replace_once(source / "go.mod", anchor, anchor + "".join(line + " // indirect\n" for line in requirements))
+    with (source / "go.sum").open("a") as locks:
+        locks.write("\n".join(sums) + "\n")
 
 
 def build(source, output, *, arch=None, test=True):

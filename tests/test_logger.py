@@ -181,7 +181,7 @@ for raw in sys.stdin:
     data = {}
     ok = True
     if method == 'hello':
-        data = {'bridgeVersion':'2.3.4-logger.1','protocolVersion':1,'capabilities':['newClient','connect','connectE2EE','isConnected','events','structuredConnectionStatus','viewOnceMedia','contactLookup']}
+        data = {'bridgeVersion':'2.3.4-logger.2','protocolVersion':1,'capabilities':['newClient','connect','connectE2EE','isConnected','events','structuredConnectionStatus','viewOnceMedia','contactLookup','instagramDMs']}
     elif method == 'connect':
         print(json.dumps({'event':{'type':'e2eeMessage','data':{'id':'startup-m1','threadId':42,'senderId':222,'text':'during startup','timestampMs':int(time.time()*1000)}}}), flush=True)
         connected = True
@@ -525,6 +525,12 @@ class RPCTests(TemporaryTest):
         try:
             bridge.check_contract()
             self.assertIs(bridge.call("isConnected")["connected"], False)
+            bridge.call("newClient", {"platform": "instagram", "cookies": {
+                "ds_user_id": "12345", "sessionid": "SYNTHETIC", "csrftoken": "SYNTHETIC",
+            }})
+            self.assertIs(bridge.call("isConnected")["connected"], False)
+            with self.assertRaises(BridgeFailure):
+                bridge.call("downloadMedia", {"url": "https://localhost/private"})
         finally:
             bridge.close()
 

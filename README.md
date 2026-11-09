@@ -39,9 +39,10 @@ dashboard manages a small shared workspace with one Telegram bot.
 | **Conversation filters** | Include or exclude individual chats and groups, with separate local capture and per-conversation Telegram forwarding preferences. |
 | **Delivery history** | Inspect confirmed, failed and uncertain notifications; explicitly confirm a resend while retained content is available. |
 | **Private user dashboards** | Each paired owner has a Telegram-confirmed profile with settings, connection health, capture statistics, filters and delivery history. |
+| **Instagram pilot** | Connect a separate Instagram session to the same bot for new DMs, supported media, and unsends. [Setup and test steps](docs/DASHBOARD.md#instagram-pilot). |
 
 > [!IMPORTANT]
-> This is an **unofficial, best-effort Messenger integration**, not a Meta product.
+> This is an **unofficial, best-effort Messenger and Instagram integration**.
 > It saves events the transport delivers. It cannot recover content deleted
 > before capture, and it deliberately does not fetch old chat history.
 

@@ -13,7 +13,7 @@ import threading
 import time
 from typing import Callable
 
-from install_bridge import DIGESTS, UPSTREAM_DIGESTS, VERSION, smoke_test
+from install_bridge import CAPABILITIES, DIGESTS, UPSTREAM_DIGESTS, VERSION, smoke_test
 from identities import display_label, username_label
 
 SAFE_REASONS = {
@@ -355,11 +355,10 @@ class Bridge:
 
     def check_contract(self) -> None:
         info = self.call("hello", timeout=15)
-        needed = {"newClient", "connect", "connectE2EE", "isConnected", "events", "structuredConnectionStatus", "viewOnceMedia", "contactLookup"}
-        if info.get("bridgeVersion") != VERSION or info.get("protocolVersion") != 1 or not needed.issubset(set(info.get("capabilities", []))):
+        if info.get("bridgeVersion") != VERSION or info.get("protocolVersion") != 1 or not CAPABILITIES.issubset(set(info.get("capabilities", []))):
             raise BridgeFailure("Messenger bridge version or RPC capabilities do not match this logger.", terminal=True)
 
-    def wait_connected(self, *, encrypted=False, timeout=120, stop_event=None) -> dict:
+    def wait_connected(self, *, encrypted=False, timeout=120, stop_event=None, service="Messenger") -> dict:
         deadline = time.monotonic() + timeout
         next_report = 0.0
         last = {}
@@ -388,14 +387,14 @@ class Bridge:
                         f"native_reconnecting={last.get('nativeReconnecting') is True}"
                     )
                     terminal = last.get("permanent") is True or code in {"auth_failed", "checkpoint_required", "config_invalid", "protocol_error", "device_state_invalid"}
-                    raise BridgeFailure("Messenger connection failed: " + safe_reason(code) + " (" + flags + ").", terminal=terminal)
+                    raise BridgeFailure(service + " connection failed: " + safe_reason(code) + " (" + flags + ").", terminal=terminal)
             elif last.get("connected") is True and (not encrypted or last.get("e2eeConnected") is True):
                 return last
             now = time.monotonic()
             remaining = max(0.0, deadline - now)
             if now >= next_report:
                 print(
-                    f"Waiting for {phase} Messenger connection: "
+                    f"Waiting for {phase} {service} connection: "
                     f"native_reconnecting={last.get('nativeReconnecting') is True}, "
                     f"retryable={last.get('retryable') is True}; "
                     f"startup deadline in {int(remaining)} seconds.",
@@ -410,7 +409,7 @@ class Bridge:
                 time.sleep(min(0.5, remaining))
         reason = safe_reason(last["failureCode"]) if last.get("failureCode") else "not_ready"
         raise BridgeFailure(
-            f"Messenger {phase} connection did not become ready within the startup deadline "
+            f"{service} {phase} connection did not become ready within the startup deadline "
             f"(last status: {reason}; native_reconnecting={last.get('nativeReconnecting') is True})."
         )
 

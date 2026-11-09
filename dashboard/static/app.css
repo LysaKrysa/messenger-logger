@@ -170,6 +170,7 @@ strong { font-weight: 600; }
 .button-group { display: flex; flex-wrap: wrap; gap: 8px; }
 .button-group form { flex: 1; min-width: 70px; }
 .button-group .button { width: 100%; }
+.page-heading .button-group > .button { width: auto; }
 .check { display: flex; align-items: center; gap: 12px; min-height: 44px; margin: 20px 0 8px; line-height: 1.6; font-weight: 400; }
 .check span { min-width: 0; }
 .account-tools, .pagination { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; }

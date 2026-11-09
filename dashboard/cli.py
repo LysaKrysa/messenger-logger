@@ -57,7 +57,7 @@ def import_existing(store, env_file, data_dir, name, *, data_root=Path("/var/lib
     if not isinstance(remote_chat, dict) or remote_chat.get("type") != "private" or str(remote_chat.get("id")) != chat:
         raise DashboardError("The existing Telegram destination was not verified as a private chat.")
     with store.db() as db:
-        if db.execute("SELECT 1 FROM accounts WHERE chat_id=? OR pending_chat=?", (int(chat), int(chat))).fetchone():
+        if db.execute("SELECT 1 FROM accounts WHERE platform='facebook' AND (chat_id=? OR pending_chat=?)", (int(chat), int(chat))).fetchone():
             raise DashboardError("That Telegram destination is already paired.")
     ident = store.add_account(name, json.dumps(cookies))
     target = data_root / ident

@@ -53,8 +53,8 @@ source during the Docker build; no precompiled binary is included in this archiv
 * Source commit: `aa7abd0386ef1d4cabf8ce592d0f2cf308d8f4f6`
 * Bridge source: https://github.com/m008v/fbchat-v2/tree/aa7abd0386ef1d4cabf8ce592d0f2cf308d8f4f6/bridge-e2ee
 * Pinned mautrix-meta submodule: `cea2e38c9107be591bcd1b7a6562ccc72400ce23`
-* Customized bridge version: `2.3.4-logger.1`
-* Local additions and tests: `native/logger_media.go`, `native/logger_media_test.go`
+* Customized bridge version: `2.3.4-logger.2`
+* Local additions and tests: `native/logger_media.go`, `native/instagram.go`, and their corresponding test files.
 * Exact source edits and build procedure: `build_native.py`
 * Compiler: Go `1.26.10`; CGO disabled, `-trimpath`, `-buildvcs=false`,
   `-ldflags=-s -w -buildid=`. No module versions are upgraded or tidied.
@@ -69,8 +69,8 @@ Pinned rebuilt binary SHA-256 (recomputed from tested local builds):
 
 | Linux architecture | Digest |
 | --- | --- |
-| amd64 | `18624127886cb39de1cd2a8986b612eb8a57139ff0c238d860f89e6e5283c286` |
-| arm64 | `7f9626bd8b9ecba5448c5ec7ea3227dc2d6b1ba43f6a0f2e4b7d6df88c4428f5` |
+| amd64 | `81fd4b1bc0ef4710a6e1ff9de8b426623386ada987db3142547c675628f78f35` |
+| arm64 | `0261e78e5e5e6dea9ce82f4bdb31caa39217ae2112d16ddefa0755fb859a6095` |
 
 The current standalone interface is JSON-line RPC. The adapter exposes only
 `hello`, `newClient`, `connect`, `connectE2EE`, `isConnected`, `disconnect`,

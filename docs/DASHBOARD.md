@@ -98,26 +98,54 @@ data, shared-bot configuration, invitations or host usage controls.
 
 ### Upgrade an existing installation
 
-From the extracted release source:
+Run this from the extracted release source on the server. Instagram support
+requires the new native bridge in the Docker image.
 
 ```bash
+sudo docker build --tag messenger-logger:modern .
+sudo docker run --rm --network none messenger-logger:modern --self-test
+sudo systemctl stop messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
 sudo install --backup=numbered -m 644 \
-  conversation_filters.py event_store.py logger.py media_saver.py \
-  telegram_relay.py telegram_i18n.py \
+  bridge_rpc.py install_bridge.py logger.py conversation_filters.py event_store.py \
+  media_saver.py telegram_relay.py telegram_i18n.py telegram_topics.py \
   /opt/messenger-dashboard/app/
 sudo install --backup=numbered -m 644 dashboard/*.py /opt/messenger-dashboard/app/dashboard/
 sudo install --backup=numbered -m 644 dashboard/templates/*.html /opt/messenger-dashboard/app/dashboard/templates/
 sudo install --backup=numbered -m 644 dashboard/static/* /opt/messenger-dashboard/app/dashboard/static/
-sudo systemctl restart messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
 sudo messenger-dashboard-admin restart-active
+sudo systemctl start messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
 ```
 
-The existing database/key/certificate and pairings are preserved, and portal
-tables migrate automatically. The one-time active-worker restart loads aggregate
-statistics and dynamic view-once controls; paused accounts stay paused. Installed
-dashboard workers mount this source, so no native image rebuild is required.
-Afterwards users can send `/panel` or `/dashboard`. Use the same HTTPS origin as
-the administrator dashboard; the existing certificate trust requirements apply.
+The account database migrates in one transaction and keeps existing account
+IDs, pairings, and owner sessions. Active workers reconnect with the new image.
+
+### Instagram pilot
+
+1. Sign in to the test account at `instagram.com` in your own browser. Open
+   Developer Tools → Application → Cookies → `https://www.instagram.com`.
+   In the administrator dashboard, choose **Connect Instagram**. Paste cookie
+   JSON with `ds_user_id`, `sessionid`, and `csrftoken` from that browser
+   session, or paste the cookie export array. Save it through the HTTPS
+   dashboard and keep the cookie values out of Telegram and support chats.
+2. Choose **Create invitation** and open it in your existing private Telegram
+   chat. Reopen the Instagram account from **All accounts**, then choose
+   **Approve pairing** and **Start**. Each Telegram owner can pair one Instagram
+   account and one Messenger account.
+3. Wait for **Connected**. Have a second account send a fresh text DM and
+   unsend it. With **Deleted messages only**, the unsend should deliver one
+   notification in an **Instagram ·** topic.
+4. Enable **Forward available view-once content immediately** and wait for
+   **Connected** again. Ask the sender for a fresh view-once photo and video.
+   Check Telegram before opening either in Instagram. When the live event has
+   a usable attachment, the logger can save and forward it. An unavailable
+   attachment is recorded as such. View-once capture is best effort.
+
+Use `/panel instagram` for the private profile and `/status instagram` for
+its health. Add `instagram` to other account commands to target that
+connection, such as `/mode all instagram` or `/disconnect instagram`.
+Account commands without a platform select Messenger when both are paired.
+`/disconnect` disconnects both. Instagram uses a manually supplied session
+for the pilot. If it expires, update cookies in **Instagram session**.
 
 ## 1. Install alongside the current logger
 

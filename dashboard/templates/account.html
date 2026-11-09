@@ -2,9 +2,10 @@
 {% block title %}{{ account.name }} · Messenger workspace{% endblock %}
 {% block breadcrumb %}Account{% endblock %}
 {% block content %}
+{% set service = platform_names[account.platform] %}
 <a class="back-link" href="{{ url_for('index') }}">{{ icon('back') }}All accounts</a>
 <div class="page-heading compact">
-  <div><h1>{{ account.name }}</h1><p class="muted">{% if account.facebook_id %}Messenger account {{ account.facebook_id }}{% else %}Add a Messenger session to finish setup.{% endif %}</p></div>
+  <div><h1>{{ account.name }}</h1><p class="muted">{% if account.facebook_id %}{{ service }} account {{ account.facebook_id }}{% else %}Add a {{ service }} session to finish setup.{% endif %}</p></div>
   <span class="status {% if status.get('ready') and not status.get('stale') %}online{% else %}warning{% endif %}"><span class="dot"></span>{% if status.get('stale') %}Awaiting manager{% elif status.get('ready') %}Connected{% else %}{{ status.get('state','Not started')|replace('_',' ')|capitalize }}{% endif %}</span>
 </div>
 {% if status.reason %}<div class="notice warning" role="status">{{ status.reason }}</div>{% endif %}
@@ -35,8 +36,8 @@
     </section>
     <section class="panel session-panel">
       <details {% if not account.has_cookies %}open{% endif %}>
-        <summary class="session-summary"><span><strong>Messenger session</strong><span class="muted">{{ 'Saved and encrypted. Open to edit or replace cookies.' if account.has_cookies else 'Add cookies to connect this account.' }}</span></span><span class="chip">{{ 'Saved' if account.has_cookies else 'Required' }}</span></summary>
-        <div class="session-body"><p class="muted">Replace cookies when Facebook asks you to sign in again. An active worker restarts with the new session.</p>
+        <summary class="session-summary"><span><strong>{{ service }} session</strong><span class="muted">{{ 'Saved and encrypted. Open to edit or replace cookies.' if account.has_cookies else 'Add cookies to connect this account.' }}</span></span><span class="chip">{{ 'Saved' if account.has_cookies else 'Required' }}</span></summary>
+        <div class="session-body"><p class="muted">Replace cookies when {{ 'Facebook' if account.platform == 'facebook' else service }} asks you to sign in again. An active worker restarts with the new session.</p>
           {% if account.has_cookies %}<form method="post" action="{{ url_for('cookie_editor',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="load"><button class="button secondary">Edit saved cookies</button></form><p class="field-note">Opens the existing cookie JSON for administrator troubleshooting. To replace the complete session instead, paste fresh cookies below.</p>{% endif %}
           <form method="post" action="{{ url_for('cookies',ident=account.id) }}"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="cookies">{{ 'New cookie JSON' if account.has_cookies else 'Cookie JSON' }}</label><textarea id="cookies" name="cookies" rows="6" maxlength="131072" autocomplete="off" spellcheck="false" required placeholder="Saved cookies are never displayed here." aria-describedby="session-note"></textarea><p class="field-note" id="session-note">Encrypted at rest. Never paste cookies into Telegram.</p><button class="button secondary">Save cookies</button></form>
         </div>
@@ -46,7 +47,7 @@
   <section class="panel telegram-panel"><div class="panel-top"><h2>Telegram destination</h2></div>
     {% if account.chat_id %}
     <div class="paired-box"><span class="dot"></span><strong>Private chat paired</strong><p>Telegram user {{ account.chat_id }}</p></div>
-    <p class="muted">Each Messenger conversation has its own topic in this user’s private bot chat.</p>
+    <p class="muted">Each {{ service }} conversation has its own topic in this user’s private bot chat.{% if account.platform == 'instagram' %} Topics begin with “Instagram ·”.{% endif %}</p>
     <form class="destination-action" method="post" action="{{ url_for('action',ident=account.id,action='disconnect') }}" data-confirm="Disconnect Telegram and stop this account's logger?"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Disconnect pairing</button></form>
     {% elif account.pending_chat %}
     <div class="notice warning"><strong>Pairing needs approval</strong><p>Confirm this is the intended person: {{ account.pending_name }} · Telegram ID {{ account.pending_chat }}</p></div>
@@ -59,6 +60,6 @@
     {% endif %}
   </section>
 </div>
-<section class="panel controls"><div><h2>User dashboard access</h2><p class="muted">The paired owner can send /panel or /dashboard to the bot to sign in to their private profile. Each sign-in requires Telegram confirmation.</p></div><form method="post" action="{{ url_for('revoke_portal',ident=account.id) }}" data-confirm="Sign out this user's dashboard browsers and disable pending sign-in links? Capture will continue."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Revoke user sign-ins</button></form></section>
+<section class="panel controls"><div><h2>User dashboard access</h2><p class="muted">The paired owner can send {{ '/panel instagram' if account.platform == 'instagram' else '/panel or /dashboard' }} to the bot to sign in to their private profile. Each sign-in requires Telegram confirmation.</p></div><form method="post" action="{{ url_for('revoke_portal',ident=account.id) }}" data-confirm="Sign out this user's dashboard browsers and disable pending sign-in links? Capture will continue."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Revoke user sign-ins</button></form></section>
 <section class="danger-zone controls"><div><h2>Remove account</h2><p class="muted">Stops capture and deletes this account’s local archive and configuration. Telegram copies remain.</p></div><form method="post" action="{{ url_for('action',ident=account.id,action='remove') }}" data-confirm="Permanently remove this account and its local archive? Telegram copies remain."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button danger">Remove account</button></form></section>
 {% endblock %}

@@ -13,7 +13,7 @@ from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from .store import DashboardError, from_environment
-from .bot_commands import ALIASES, CONTROLS, handle_control
+from .bot_commands import ALIASES, CONTROLS, account_scope, handle_control
 from .connection_alerts import ConnectionAlerts
 from .deliveries import Deliveries
 from .history_commands import HistoryCommands, PREFIXES
@@ -160,15 +160,18 @@ class PairingReceiver:
         canonical = ALIASES.get(command.removeprefix("/").casefold(), command.removeprefix("/").casefold())
         if not command.startswith("/"):
             canonical = ""
+        platform, parameter = account_scope(canonical, parameter)
         markup = None
-        if canonical == "dashboard" or canonical == "start" and parameter == "dashboard":
-            reply = self.portal.request(chat_id, language) if not parameter or canonical == "start" else tr(language, "command_usage")
+        if canonical == "dashboard" or canonical == "start" and parameter in {"dashboard", "instagram_dashboard"}:
+            if parameter == "instagram_dashboard" and canonical == "start":
+                platform = "instagram"
+            reply = self.portal.request(chat_id, language, platform=platform) if not parameter or canonical == "start" else tr(language, "command_usage")
         elif canonical == "reconnect":
-            reply = self.connection_alerts.request(chat_id, language) if not parameter else tr(language, "command_usage")
+            reply = self.connection_alerts.request(chat_id, language, platform=platform) if not parameter else tr(language, "command_usage")
         elif canonical in CONTROLS:
-            reply = handle_control(self.store, chat_id, canonical, parameter, language)
+            reply = handle_control(self.store, chat_id, canonical, parameter, language, platform=platform)
         elif canonical in {"chats", "deliveries"}:
-            reply, markup = self.history.menu(chat_id, canonical, language) if not parameter else (tr(language, "command_usage"), None)
+            reply, markup = self.history.menu(chat_id, canonical, language, platform=platform) if not parameter else (tr(language, "command_usage"), None)
         elif canonical in {"en", "pl"}:
             if parameter.strip():
                 return
@@ -183,12 +186,14 @@ class PairingReceiver:
         elif parameter:
             reply = tr(language, "command_usage")
         elif canonical in {"disconnect", "stop"}:
-            self.store.disconnect_user(chat_id)
+            self.store.disconnect_user(chat_id, platform=platform)
             reply = tr(language, "disconnected")
         elif canonical == "privacy":
             reply = tr(language, "privacy")
         elif canonical in {"start", "help"}:
             reply = tr(language, "help")
+            if self.store.user_account(chat_id, platform="instagram"):
+                reply += "\n\n" + tr(language, "instagram_help")
         else:
             reply = ""
         welcome_key = "bot_welcomed:" + str(bot["id"] if bot else 0) + ":" + str(chat_id)

@@ -53,9 +53,11 @@ def install(app, store, origin, deliveries, status_root):
     @portal.context_processor
     def context():
         row = getattr(g, "owner", None)
+        bot = store.bot()
+        destination = "instagram_dashboard" if row and row["platform"] == "instagram" else "dashboard"
         return {"pt": lambda key, **values: text(language(), key, **values), "portal_language": language(),
                 "owner": row, "display_name": auth.profile(row) if row else "",
-                "csrf": getattr(g, "portal_csrf", ""), "bot_url": "https://t.me/" + store.bot()["username"] + "?start=dashboard" if store.bot() else None}
+                "csrf": getattr(g, "portal_csrf", ""), "bot_url": "https://t.me/" + bot["username"] + "?start=" + destination if bot else None}
 
     @app.template_filter("portaldate")
     def date(value):
@@ -187,6 +189,8 @@ def install(app, store, origin, deliveries, status_root):
 
     @portal.post("/me/reconnect")
     def reconnect():
+        if g.owner["platform"] == "instagram":
+            raise DashboardError("Ask the administrator to refresh this Instagram session.")
         # Resolve the current binding again before issuing. The existing refresh
         # gate enforces offline state, same Facebook identity and Telegram owner.
         with store.db() as db:

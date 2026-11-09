@@ -121,7 +121,7 @@ def boolean(name, default):
 
 
 class TelegramRelay:
-    def __init__(self, report, store, *, timezone="Europe/Warsaw", start=True, names=None):
+    def __init__(self, report, store, *, timezone="Europe/Warsaw", start=True, names=None, topic_prefix=""):
         self.enabled = boolean("TELEGRAM_ENABLED", False)
         self.report, self.store = report, store
         self.zone = ZoneInfo(timezone)
@@ -174,7 +174,7 @@ class TelegramRelay:
             if (not self.gateway and not re.fullmatch(r"[0-9]+:[A-Za-z0-9_-]{20,}", self.token)) or not self.chat.strip() or len(self.chat) > 128 or any(char in self.chat for char in "\r\n"):
                 raise TelegramConfigurationError("Telegram requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
             if self.use_topics:
-                self.topics = TopicRouter(self._api, store, bot_id, self.chat, language=self.language)
+                self.topics = TopicRouter(self._api, store, bot_id, self.chat, language=self.language, title_prefix=topic_prefix)
             if start:
                 self.thread = threading.Thread(target=self._work, name="telegram-relay", daemon=True)
                 self.thread.start()

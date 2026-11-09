@@ -44,13 +44,13 @@ class PortalAuth:
             db.execute("DELETE FROM portal_sessions WHERE created<=? OR touched<=? OR NOT EXISTS (SELECT 1 FROM accounts a WHERE a.id=portal_sessions.account_id AND a.pair_epoch=portal_sessions.pair_epoch AND a.chat_id=portal_sessions.owner_chat AND a.facebook_id=portal_sessions.facebook_id)", (now - SESSION_SECONDS, now - IDLE_SECONDS))
             db.execute("DELETE FROM portal_profiles WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.id=portal_profiles.account_id AND a.pair_epoch=portal_profiles.pair_epoch)")
 
-    def issue(self, owner):
+    def issue(self, owner, *, platform=None):
         if type(owner) is not int or not self.store.take_limit("portal-link:" + str(owner), 6, 900):
             raise DashboardError("Portal link unavailable.")
         token, ident, now = secrets.token_urlsafe(32), uuid.uuid4().hex, self.store.clock()
         with self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT * FROM accounts WHERE chat_id=?", (owner,)).fetchone()
+            row = self.store.paired_account(db, owner, platform=platform)
             if not row or not row["facebook_id"] or not self.store.bot():
                 raise DashboardError("An approved paired account is required.")
             db.execute("DELETE FROM portal_links WHERE account_id=?", (row["id"],))
@@ -190,9 +190,9 @@ class PortalLogins:
         if parsed.scheme != "https" or not parsed.hostname or parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password:
             raise DashboardError("Configure an HTTPS dashboard origin.")
 
-    def request(self, owner, language):
+    def request(self, owner, language, *, platform=None):
         try:
-            token = self.auth.issue(owner)
+            token = self.auth.issue(owner, platform=platform)
         except DashboardError:
             return tr(language, "portal_unavailable")
         return tr(language, "portal_link", url=self.origin + "/me/login?lang=" + language + "#" + token)

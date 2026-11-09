@@ -106,6 +106,9 @@ TEXT = {
 
 TEXT["en"].update({
     "offline_alert": "⚠️ Your Messenger logger is offline or is no longer reporting its connection. New messages may not be captured. Check /status; a temporary connection problem may recover automatically.",
+    "instagram_offline": "⚠️ Your Instagram logger is offline. Check /status instagram for its connection state.",
+    "instagram_refresh": "If your Instagram session expired, sign in to Instagram again and ask the administrator to update the saved Instagram session.",
+    "instagram_help": "Instagram: /dashboard instagram opens your Instagram profile. Add instagram to an account command, for example /status instagram. /disconnect instagram disconnects only Instagram.",
     "reconnect_link": "Refresh your existing Messenger session:\n{url}\n\nThis single-use link expires in 15 minutes. After opening it, confirm the request in this Telegram chat before signing in. Only your originally approved Messenger account can be reconnected; your Telegram pairing stays unchanged. Use /reconnect if you need a fresh link.",
     "reconnect_unavailable": "A reconnect link is available only for your existing account after a sustained outage. Online, paused or unlinked accounts cannot request one. At most three links can be issued per hour. Check /status or contact the administrator.",
     "reconnect_confirmation": "A one-time reconnect link was opened. If that was you, approve below to open the temporary Facebook browser. Only your original Messenger account can be refreshed. Reject this request if you did not open the link.",
@@ -159,6 +162,9 @@ TEXT["en"].update({
 })
 TEXT["pl"].update({
     "offline_alert": "⚠️ Twój rejestrator Messengera utracił połączenie lub przestał raportować jego stan. Nowe wiadomości mogą nie być zapisywane. Sprawdź /stan. Przejściowy problem z połączeniem może ustąpić samoczynnie.",
+    "instagram_offline": "⚠️ Twój rejestrator Instagrama utracił połączenie. Sprawdź jego stan poleceniem /stan instagram.",
+    "instagram_refresh": "Jeśli sesja Instagrama wygasła, zaloguj się ponownie na Instagramie i poproś administratora o odnowienie zapisanej sesji.",
+    "instagram_help": "Instagram: /panel instagram otwiera profil Instagrama. Dodaj instagram do polecenia konta, np. /stan instagram. /odlacz instagram odłącza tylko Instagram.",
     "reconnect_link": "Odnów sesję swojego istniejącego konta Messenger:\n{url}\n\nTen jednorazowy link wygasa po 15 minutach. Po otwarciu potwierdź żądanie w tym czacie Telegrama przed logowaniem. Możesz ponownie połączyć tylko pierwotnie zatwierdzone konto Messenger. Połączenie z Telegramem pozostaje bez zmian. /polacz pozwala poprosić o nowy link.",
     "reconnect_unavailable": "Link ponownego połączenia jest dostępny tylko dla Twojego istniejącego konta po dłuższej utracie połączenia. Nie można go uzyskać dla konta działającego, wstrzymanego ani odłączonego. Limit wynosi trzy linki na godzinę. Sprawdź /stan lub skontaktuj się z administratorem.",
     "reconnect_confirmation": "Otwarto jednorazowy link ponownego połączenia. Jeśli to Ty, potwierdź poniżej, aby otworzyć tymczasową przeglądarkę Facebooka. Można odnowić tylko pierwotne konto Messenger. Odrzuć żądanie, jeśli link został otwarty przez kogoś innego.",
