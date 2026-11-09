@@ -15,6 +15,7 @@
 .guest-welcome-grid h2 { margin-bottom: 24px; font-size: 18px; }
 .guest-consent { align-items: flex-start; max-width: none; font-size: 14px; }
 .guest-consent input { margin-top: 2px; }
+.guest-code { margin: 16px 0; font: 600 26px/1.4 ui-monospace, monospace; letter-spacing: .14em; }
 .guest-facts { padding: 0 4px; }
 .guest-facts > h2 { font-size: 14px; margin-bottom: 8px; }
 .guest-facts > div { padding: 18px 0; }

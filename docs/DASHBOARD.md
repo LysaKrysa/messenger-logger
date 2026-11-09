@@ -98,13 +98,27 @@ data, shared-bot configuration, invitations or host usage controls.
 
 ### Upgrade an existing installation
 
-Run this from the extracted release source on the server. Instagram support
-requires the new native bridge in the Docker image.
+Run this from the extracted release source on the server. The update rebuilds
+the temporary browser image and checks that the installed logger image supports
+Instagram before stopping the dashboard.
 
 ```bash
-sudo docker build --tag messenger-logger:modern .
-sudo docker run --rm --network none messenger-logger:modern --self-test
-sudo systemctl stop messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
+(
+set -euo pipefail
+test -f Dockerfile
+logger_source_dir=$(pwd -P)
+logger_restart_workers=false
+if ! sudo docker run --pull=never --rm --network none \
+    --mount "type=bind,source=$logger_source_dir,target=/app,readonly" \
+    messenger-logger:modern --self-test; then
+  sudo docker build --tag messenger-logger:modern .
+  sudo docker run --rm --network none messenger-logger:modern --self-test
+  logger_restart_workers=true
+fi
+sudo docker build --tag messenger-onboarding:browser browser/
+sudo python3 browser/check_container.py
+
+sudo systemctl stop messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager messenger-dashboard-browser
 sudo install --backup=numbered -m 644 \
   bridge_rpc.py install_bridge.py logger.py conversation_filters.py event_store.py \
   media_saver.py telegram_relay.py telegram_i18n.py telegram_topics.py \
@@ -112,14 +126,39 @@ sudo install --backup=numbered -m 644 \
 sudo install --backup=numbered -m 644 dashboard/*.py /opt/messenger-dashboard/app/dashboard/
 sudo install --backup=numbered -m 644 dashboard/templates/*.html /opt/messenger-dashboard/app/dashboard/templates/
 sudo install --backup=numbered -m 644 dashboard/static/* /opt/messenger-dashboard/app/dashboard/static/
-sudo messenger-dashboard-admin restart-active
-sudo systemctl start messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager
+sudo install --backup=numbered -m 644 browser/*.py browser/seccomp.json /opt/messenger-dashboard/app/browser/
+if "$logger_restart_workers"; then
+  sudo messenger-dashboard-admin restart-active
+fi
+sudo systemctl start messenger-dashboard-browser messenger-dashboard-bot messenger-dashboard-web messenger-dashboard-manager
+)
 ```
 
-The account database migrates in one transaction and keeps existing account
-IDs, pairings, and owner sessions. Active workers reconnect with the new image.
+If the logger image needed rebuilding, the active workers reconnect with the
+new image. Use a trusted HTTPS origin for links shared with other users.
 
-### Instagram pilot
+### Connect Instagram from Telegram
+
+1. Send `/instagram` to the shared bot in your private chat after your
+   Messenger pairing has been approved. The link expires in 15 minutes and
+   reserves one account slot. A newer link replaces your earlier request.
+2. Open the link yourself and read the consent. Press **Continue**, then
+   compare the six-digit code on the page with the bot's message. Approve in
+   that same Telegram chat to unlock the browser.
+3. Choose **Open Instagram** and sign in to your own account on the actual
+   Instagram site. Complete any verification, then open Instagram Home or
+   your inbox. Confirm the session and choose **Connect & continue**. The
+   browser closes and the Instagram worker starts for your existing chat.
+4. Check the connection with `/status instagram` or `/stan instagram`, or
+   open the private profile with `/panel instagram`.
+
+Each approved Telegram chat gets one Instagram connection. If you disconnect a
+connection made by `/instagram`, the existing account keeps its slot until an
+administrator reapproves or removes it. Administrators can review and disable
+outstanding links under **Setup links** and manage connected accounts under
+**Overview**. Link issuance is limited to three per Telegram user per hour.
+
+### Instagram pilot and manual setup
 
 1. Sign in to the test account at `instagram.com` in your own browser. Open
    Developer Tools → Application → Cookies → `https://www.instagram.com`.
@@ -144,8 +183,8 @@ Use `/panel instagram` for the private profile and `/status instagram` for
 its health. Add `instagram` to other account commands to target that
 connection, such as `/mode all instagram` or `/disconnect instagram`.
 Account commands without a platform select Messenger when both are paired.
-`/disconnect` disconnects both. Instagram uses a manually supplied session
-for the pilot. If it expires, update cookies in **Instagram session**.
+`/disconnect` disconnects both. If an Instagram session expires, an
+administrator can update it in **Instagram session**.
 
 ## 1. Install alongside the current logger
 

@@ -18,8 +18,8 @@ class BrowserError(ValueError):
 
 
 class DockerBrowser:
-    def __init__(self, ident, expires, *, proxy_path, policy_path, image=IMAGE, clock=time.time, offline_check=False):
-        if not IDENT.fullmatch(ident):
+    def __init__(self, ident, expires, *, proxy_path, policy_path, image=IMAGE, clock=time.time, offline_check=False, platform="facebook"):
+        if not IDENT.fullmatch(ident) or platform not in ("facebook", "instagram"):
             raise BrowserError("Invalid setup session.")
         self.ident, self.expires, self.clock = ident, expires, clock
         self.name = "messenger-setup-" + ident
@@ -28,6 +28,8 @@ class DockerBrowser:
         self.failed = False
         command = self.command(ident, proxy_path, policy_path, image)
         command += ["--expires", str(expires)]
+        if platform == "instagram":
+            command += ["--platform", platform]
         if offline_check:
             command.append("--offline-check")
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None if offline_check else subprocess.DEVNULL)
@@ -82,7 +84,7 @@ class DockerBrowser:
                 self.failed = True
                 raise BrowserError("The remote browser stopped responding. Start it again to continue.") from None
             except Exception:
-                raise BrowserError("The remote browser could not complete that action. Finish Facebook's checks or restart the browser.") from None
+                raise BrowserError("The remote browser could not complete that action. Finish the sign-in checks or restart the browser.") from None
 
     def close(self):
         # The exact container was created by this object. Never remove arbitrary
@@ -110,8 +112,8 @@ class Controller:
         self.factory, self.clock = factory, clock
         self.lock, self.sessions = threading.RLock(), {}
 
-    def start(self, ident, expires, mobile=False):
-        if not isinstance(ident, str) or not IDENT.fullmatch(ident) or type(expires) not in {int, float} or not self.clock() < expires <= self.clock() + 1201:
+    def start(self, ident, expires, mobile=False, *, platform="facebook"):
+        if not isinstance(ident, str) or not IDENT.fullmatch(ident) or type(expires) not in {int, float} or not self.clock() < expires <= self.clock() + 1201 or platform not in ("facebook", "instagram"):
             raise BrowserError("This setup session is unavailable.")
         self.sweep()
         with self.lock:
@@ -119,7 +121,7 @@ class Controller:
                 return {"started": True}
             if self.sessions:
                 raise BrowserError("Someone else is connecting. Please try again shortly; one browser runs at a time.")
-            browser = self.factory(ident, expires, proxy_path=self.proxy_path, policy_path=self.policy_path, clock=self.clock)
+            browser = self.factory(ident, expires, proxy_path=self.proxy_path, policy_path=self.policy_path, clock=self.clock, platform=platform)
             self.sessions[ident] = browser
         try:
             return browser.call("open", {"mobile": mobile is True})

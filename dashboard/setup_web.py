@@ -14,11 +14,12 @@ from zoneinfo import ZoneInfo
 
 from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, url_for
 
-from .setup_store import SetupInvites, SESSION_SECONDS
+from .setup_store import CONFIRMATION_PURPOSES, INSTAGRAM_SECONDS, SetupInvites, SESSION_SECONDS
 from .store import DashboardError
 from browser.events import normalize
 
 COOKIE = "__Host-messenger_setup"
+INSTAGRAM_COOKIE = "__Host-messenger_instagram"
 
 
 class BrowserClient:
@@ -70,10 +71,13 @@ def install(app, store, origin, browser=None):
             raise DashboardError("The browser frame was unavailable.")
         return data
 
-    def guest_session():
-        token = request.cookies.get(COOKIE)
+    def guest_cookie(flow):
+        return INSTAGRAM_COOKIE if flow == "instagram" else COOKIE
+
+    def guest_session(flow):
+        token = request.cookies.get(guest_cookie(flow))
         row = invitations.session(token)
-        if not row:
+        if not row or (row["purpose"] == "instagram") != (flow == "instagram"):
             abort(401)
         if not store.take_limit("setup-actions:" + row["id"], 600, 60):
             abort(429)
@@ -83,24 +87,28 @@ def install(app, store, origin, browser=None):
                 abort(403)
         return token, row
 
-    def live_session():
-        token, row = guest_session()
+    def live_session(flow):
+        token, row = guest_session(flow)
         if row["state"] != "claimed":
-            raise DashboardError("Facebook setup is already complete. Continue to Telegram.")
-        if row["purpose"] == "reconnect" and not row["confirmed"]:
-            raise DashboardError("Approve this request in your paired Telegram chat before opening Facebook.")
+            raise DashboardError("Setup is already complete. Continue to Telegram.")
+        if row["purpose"] in CONFIRMATION_PURPOSES and not row["confirmed"]:
+            raise DashboardError("Approve this request in your paired Telegram chat before opening the temporary browser.")
         return token, row
 
     @guest.get("/setup")
     def page():
-        return render_template("setup.html", reconnect=False)
+        return render_template("setup.html", purpose="setup")
 
     @guest.get("/reconnect")
     def reconnect_page():
-        return render_template("setup.html", reconnect=True)
+        return render_template("setup.html", purpose="reconnect")
 
-    @guest.post("/setup/api/claim")
-    def claim():
+    @guest.get("/instagram")
+    def instagram_page():
+        return render_template("setup.html", purpose="instagram")
+
+    @guest.post("/<any(setup,instagram):flow>/api/claim")
+    def claim(flow):
         if request.headers.get("Origin") != origin:
             abort(403)
         if not store.take_limit("setup-claim:" + store.secret(request.remote_addr or "unknown"), 12, 900):
@@ -108,21 +116,26 @@ def install(app, store, origin, browser=None):
         data = request.get_json(silent=True) or {}
         if not isinstance(data, dict) or data.get("consent") is not True:
             raise DashboardError("Please read and accept how the temporary browser and session will be used.")
-        token = invitations.claim(data.get("token"), data.get("name"))
+        instagram = flow == "instagram"
+        token = invitations.claim(data.get("token"), data.get("name"), instagram=instagram)
         response = jsonify(invitations.progress(token))
-        response.set_cookie(COOKIE, token, max_age=SESSION_SECONDS, secure=True, httponly=True, samesite="Strict", path="/")
+        response.set_cookie(guest_cookie(flow), token, max_age=INSTAGRAM_SECONDS if instagram else SESSION_SECONDS,
+                            secure=True, httponly=True, samesite="Strict", path="/")
         return response
 
-    @guest.get("/setup/api/status")
-    def status():
-        token, _ = guest_session()
+    @guest.get("/<any(setup,instagram):flow>/api/status")
+    def status(flow):
+        token, _ = guest_session(flow)
         return jsonify(invitations.progress(token))
 
-    @guest.post("/setup/api/start")
-    def start():
-        token, row = live_session()
+    @guest.post("/<any(setup,instagram):flow>/api/start")
+    def start(flow):
+        token, row = live_session(flow)
         data = request.get_json(silent=True) or {}
-        browser.call(row["id"], "start", {"expires": row["session_expires"], "mobile": isinstance(data, dict) and data.get("mobile") is True})
+        launch = {"expires": row["session_expires"], "mobile": isinstance(data, dict) and data.get("mobile") is True}
+        if row["purpose"] == "instagram":
+            launch["platform"] = "instagram"
+        browser.call(row["id"], "start", launch)
         if invitations.session(token) is None:
             try:
                 browser.call(row["id"], "stop")
@@ -130,22 +143,22 @@ def install(app, store, origin, browser=None):
                 raise DashboardError("This invitation was disabled or expired while the browser was starting.")
         return jsonify(started=True)
 
-    @guest.post("/setup/api/frame")
-    def frame():
-        _, row = live_session()
+    @guest.post("/<any(setup,instagram):flow>/api/frame")
+    def frame(flow):
+        _, row = live_session(flow)
         result = browser.call(row["id"], "frame")
         # Only pixels, the observed hostname and a readiness flag reach the guest.
         return jsonify(jpeg=result.get("jpeg", ""), site=result.get("site", "Starting browser"), width=result.get("width", 1024), height=result.get("height", 768), ready=result.get("ready") is True)
 
-    @guest.post("/setup/api/view")
-    def view():
-        _, row = live_session()
+    @guest.post("/<any(setup,instagram):flow>/api/view")
+    def view(flow):
+        _, row = live_session(flow)
         result = browser.call(row["id"], "frame", {"metadata_only": True})
         return jsonify(site=result.get("site", "Starting browser"), width=result.get("width", 1024), height=result.get("height", 768), ready=result.get("ready") is True)
 
-    @guest.get("/setup/api/stream")
-    def stream():
-        token, row = live_session()
+    @guest.get("/<any(setup,instagram):flow>/api/stream")
+    def stream(flow):
+        token, row = live_session(flow)
         if not viewers.acquire(blocking=False):
             abort(429)
         try:
@@ -181,9 +194,9 @@ def install(app, store, origin, browser=None):
         response.call_on_close(release)
         return response
 
-    @guest.post("/setup/api/input")
-    def action():
-        _, row = live_session()
+    @guest.post("/<any(setup,instagram):flow>/api/input")
+    def action(flow):
+        _, row = live_session(flow)
         data = request.get_json(silent=True) or {}
         if not isinstance(data, dict):
             abort(400)
@@ -200,14 +213,14 @@ def install(app, store, origin, browser=None):
         browser.call(row["id"], action, {k: v for k, v in data.items() if k in {"x", "y", "key", "text", "delta"}})
         return jsonify(ok=True)
 
-    @guest.post("/setup/api/finish")
-    def finish():
-        token, row = guest_session()
+    @guest.post("/<any(setup,instagram):flow>/api/finish")
+    def finish(flow):
+        token, row = guest_session(flow)
         data = request.get_json(silent=True) or {}
         if not isinstance(data, dict) or data.get("approve") is not True:
-            raise DashboardError("Approve connecting this Facebook session before continuing.")
+            raise DashboardError("Approve connecting this signed-in session before continuing.")
         if row["state"] == "claimed":
-            if row["purpose"] == "reconnect" and not row["confirmed"]:
+            if row["purpose"] in CONFIRMATION_PURPOSES and not row["confirmed"]:
                 raise DashboardError("Approve this request in your paired Telegram chat first.")
             try:
                 captured = browser.call(row["id"], "capture")
@@ -230,16 +243,16 @@ def install(app, store, origin, browser=None):
                 pass  # Host's independent hard deadline still closes the sandbox.
         return jsonify(invitations.progress(token))
 
-    @guest.post("/setup/api/cancel")
-    def cancel():
-        _, row = guest_session()
+    @guest.post("/<any(setup,instagram):flow>/api/cancel")
+    def cancel(flow):
+        _, row = guest_session(flow)
         invitations.revoke(row["id"])
         try:
             browser.call(row["id"], "stop")
         except DashboardError:
             pass
         response = jsonify(cancelled=True)
-        response.delete_cookie(COOKIE, secure=True, httponly=True, samesite="Strict", path="/")
+        response.delete_cookie(guest_cookie(flow), secure=True, httponly=True, samesite="Strict", path="/")
         return response
 
     @guest.errorhandler(Exception)

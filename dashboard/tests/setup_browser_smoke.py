@@ -1,5 +1,7 @@
 """Real HTTPS guest UI with synthetic browser data, never a Facebook login."""
 import base64
+import json
+import re
 import time
 
 from dashboard.store import DashboardError
@@ -8,6 +10,7 @@ from dashboard.store import DashboardError
 class OfflineBrowser:
     def __init__(self):
         self.frame, self.sessions, self.calls = "", set(), []
+        self.platforms = {}
         self.width, self.height = 1024, 768
         self.fail_next_input = self.fail_metadata = self.lose_finish_response = self.stopping = False
         self.stop_delay = 0
@@ -16,8 +19,10 @@ class OfflineBrowser:
         self.calls.append((ident, action, data))
         if action == "start":
             self.sessions.add(ident)
+            self.platforms[ident] = data.get("platform", "facebook")
         elif action == "stop":
             self.sessions.discard(ident)
+            self.platforms.pop(ident, None)
             self.stopping = True
             try:
                 time.sleep(self.stop_delay)
@@ -25,6 +30,9 @@ class OfflineBrowser:
                 self.stopping = False
         elif action == "capture":
             assert ident in self.sessions
+            if self.platforms.get(ident) == "instagram":
+                return {"cookies": {"ds_user_id": "7766554433", "sessionid": "SYNTHETIC_INSTAGRAM_SESSION",
+                                    "csrftoken": "SYNTHETIC_INSTAGRAM_CSRF"}}
             return {"cookies": {"c_user": "7766554433", "xs": "SYNTHETIC_GUEST_SESSION", "datr": "SYNTHETIC_GUEST_DEVICE"}}
         elif action == "frame":
             assert ident in self.sessions
@@ -206,7 +214,6 @@ def verify(browser, admin, origin, store, offline, output):
     api = FakeAPI()
     receiver = PairingReceiver(store, api, origin=origin)
     receiver.connection_alerts.confirmations()
-    import json
     prompt = json.loads(api.calls[-1][1])
     callback = prompt["reply_markup"]["inline_keyboard"][0][0]["callback_data"]
     receiver.handle({"update_id": store.setting("bot_offset", -1) + 1, "callback_query": {
@@ -230,7 +237,51 @@ def verify(browser, admin, origin, store, offline, output):
     assert "SYNTHETIC_GUEST_SESSION" not in refresh.content()
     assert not refresh.evaluate("document.documentElement.scrollWidth > innerWidth")
     refresh.screenshot(path=str(output / "reconnect-complete-mobile.png"), full_page=True)
+    verify_instagram_login(refresh, origin, store, offline, receiver, api, record["chat_id"], output)
     refresh_context.close()
     assert not errors, errors
     guest_context.close()
     second_context.close()
+
+
+def verify_instagram_login(page, origin, store, offline, receiver, api, owner, output):
+    def update(**payload):
+        receiver.handle(dict(payload, update_id=store.setting("bot_offset", -1) + 1))
+
+    chat = {"id": owner, "type": "private"}
+    sender = {"id": owner, "is_bot": False}
+    update(message={"text": "/instagram", "chat": chat, "from": sender})
+    url = re.search(r"https://\S+/instagram#[A-Za-z0-9_-]{43}", json.loads(api.calls[-1][1])["text"])[0]
+    page.goto(url)
+    page.get_by_role("heading", name="Connect Instagram", exact=True).wait_for()
+    page.locator("#guest-consent").check()
+    page.get_by_role("button", name="Continue", exact=True).click()
+    page.locator("#reconnect-confirm").wait_for(state="visible")
+    code = page.locator("#confirmation-code").inner_text()
+    assert re.fullmatch(r"[0-9]{6}", code)
+    page.reload()
+    page.locator("#confirmation-code").wait_for(state="visible")
+    assert page.locator("#confirmation-code").inner_text() == code
+    assert page.locator("#facebook").is_hidden() and not offline.sessions
+    assert not page.evaluate("document.documentElement.scrollWidth > innerWidth")
+    page.screenshot(path=str(output / "instagram-confirm-mobile.png"), full_page=True)
+    receiver.connection_alerts.confirmations()
+    prompt = json.loads(api.calls[-1][1])
+    assert code in prompt["text"] and prompt["chat_id"] == owner
+    data = prompt["reply_markup"]["inline_keyboard"][0][0]["callback_data"]
+    update(callback_query={"id": "SYNTHETIC_INSTAGRAM_CONFIRM", "data": data, "from": sender,
+                           "message": {"chat": chat, "from": {"id": store.bot()["id"], "is_bot": True}}})
+    page.get_by_role("heading", name="Sign in to Instagram").wait_for()
+    page.get_by_role("button", name="Open Instagram", exact=False).click()
+    page.locator("#remote-screen").wait_for(state="visible")
+    assert "instagram" in offline.platforms.values()
+    page.locator("#approve-session").check()
+    page.locator("#finish-facebook").click()
+    page.get_by_role("heading", name="Instagram connection saved").wait_for()
+    assert not offline.sessions
+    assert "SYNTHETIC_INSTAGRAM_SESSION" not in page.content()
+    instagram = store.user_account(owner, platform="instagram")
+    assert instagram["desired"] and instagram["chat_id"] == owner
+    update(message={"text": "/instagram", "chat": chat, "from": sender})
+    assert "/instagram#" not in json.loads(api.calls[-1][1])["text"]
+    store.action(instagram["id"], "remove")

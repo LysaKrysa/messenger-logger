@@ -94,6 +94,26 @@ class BrowserPolicyTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         public_addresses(host)
 
+    def test_instagram_egress_and_session_readiness_are_provider_scoped(self):
+        self.assertTrue(allowed_host("www.instagram.com"))
+        self.assertTrue(allowed_host("static.cdninstagram.com"))
+        for url in ("https://www.instagram.com/accounts/login/", "https://static.cdninstagram.com/script.js",
+                    "https://static.xx.fbcdn.net/script.js", "https://www.google.com/recaptcha/api.js"):
+            self.assertTrue(allowed_url(url, "instagram"))
+        for url in ("https://www.facebook.com/", "https://www.instagram.com.evil.example/",
+                    "https://www.instagram.com:8443/", "https://@www.instagram.com/",
+                    "https://www.google.com/search", "https://169.254.169.254/"):
+            self.assertFalse(allowed_url(url, "instagram"))
+        self.assertFalse(allowed_url("https://www.instagram.com/"))
+        for url in ("https://www.instagram.com/", "https://www.instagram.com/direct/inbox/",
+                    "https://www.instagram.com/direct/t/123/"):
+            self.assertTrue(session_url(url, "instagram"))
+        for url in ("https://www.instagram.com/accounts/login/", "https://www.instagram.com/challenge/",
+                    "https://www.instagram.com/accounts/two_factor_authentication/",
+                    "https://accountscenter.instagram.com/", "https://static.cdninstagram.com/",
+                    "https://www.facebook.com/", "https://www.instagram.com/direct/../challenge/"):
+            self.assertFalse(session_url(url, "instagram"))
+
 
 if __name__ == "__main__":
     unittest.main()

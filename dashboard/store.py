@@ -48,6 +48,15 @@ def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def reserved_setup_slots(db, now):
+    if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='setup_invites'").fetchone():
+        return 0
+    columns = {row[1] for row in db.execute("PRAGMA table_info(setup_invites)")}
+    purpose = "purpose IN ('setup','instagram') AND " if "purpose" in columns else ""
+    return db.execute("SELECT COUNT(*) FROM setup_invites WHERE " + purpose +
+                      "expires>? AND (state='pending' OR (state='claimed' AND session_expires>?))", (now, now)).fetchone()[0]
+
+
 class Store:
     def __init__(self, root, key, *, clock=time.time, readonly=False, max_accounts=6):
         self.root, self.clock, self.readonly = Path(root), clock, readonly
@@ -351,14 +360,11 @@ class Store:
         try:
             with self.db() as db:
                 db.execute("BEGIN IMMEDIATE")
-                if db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] >= self.max_accounts:
+                accounts = db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+                if accounts >= self.max_accounts:
                     raise DashboardError("This server has reached its configured account limit.")
-                if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='setup_invites'").fetchone():
-                    now = self.clock()
-                    purpose = "purpose='setup' AND " if "purpose" in {row[1] for row in db.execute("PRAGMA table_info(setup_invites)")} else ""
-                    reserved = db.execute("SELECT COUNT(*) FROM setup_invites WHERE " + purpose + "expires>? AND (state='pending' OR (state='claimed' AND session_expires>?))", (now, now)).fetchone()[0]
-                    if db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] + reserved >= self.max_accounts:
-                        raise DashboardError("Available account slots are reserved by active setup links. Disable an unused link before adding an account manually.")
+                if accounts + reserved_setup_slots(db, self.clock()) >= self.max_accounts:
+                    raise DashboardError("Available account slots are reserved by active setup links. Disable an unused link before adding an account manually.")
                 db.execute("INSERT INTO accounts(id,name,cookies,facebook_id,created,platform) VALUES (?,?,?,?,?,?)",
                            (ident, name, self.seal("cookies:" + ident, parsed) if parsed else None,
                             parsed[SESSION_ID[platform]] if parsed else None, self.clock(), platform))
@@ -489,6 +495,8 @@ class Store:
                     raise DashboardError("Choose deleted messages or all supported chat events.")
                 db.execute("UPDATE accounts SET mode=?,view_once=?,revision=revision+1 WHERE id=?", (mode, int(bool(view_once)), ident))
             elif action == "remove":
+                if row["platform"] == "instagram":
+                    db.execute("DELETE FROM settings WHERE key LIKE 'instagram-enrollment:%' AND value=?", (json.dumps(ident),))
                 db.execute("DELETE FROM settings WHERE key=?", ("connection_monitor:" + ident,))
                 db.execute("DELETE FROM settings WHERE key IN (?,?,?)", ("controls:" + ident, "worker_status:" + ident, "delivery_status:" + ident))
                 db.execute("DELETE FROM invites WHERE account_id=?", (ident,))

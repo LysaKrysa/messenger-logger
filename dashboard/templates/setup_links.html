@@ -8,7 +8,7 @@
   <form method="post" action="{{ url_for('setup_links') }}"><input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="invite-create"><div><label for="label">Label <span class="optional">Optional</span></label><input id="label" name="label" maxlength="80" placeholder="e.g. Alex’s invitation"></div><div><label for="hours">Expires after</label><select id="hours" name="hours"><option value="1">1 hour</option><option value="6">6 hours</option><option value="24" selected>24 hours</option></select></div><button class="button primary" {% if not bot %}disabled{% endif %}>Generate setup link</button></div>
   </form>
-  <details class="help-details"><summary>How setup invitations work</summary><p>Each unused link reserves one account slot. A preview does not use it. Once the person presses Continue, their browser owns the link for up to 20 minutes. One remote Facebook browser runs at a time.</p><p>Use a trusted HTTPS certificate for shared invitations. The default self-signed certificate shows a browser trust warning.</p></details>
+  <details class="help-details"><summary>How setup invitations work</summary><p>Each unused link reserves one account slot. A preview does not use it. People with an approved Telegram pairing can request an Instagram link with /instagram. One remote sign-in browser runs at a time.</p><p>Use a trusted HTTPS certificate for shared invitations. The default self-signed certificate shows a browser trust warning.</p></details>
   {% if not bot %}<p class="field-note"><a href="{{ url_for('bot_settings') }}">Connect the shared Telegram bot first.</a></p>{% endif %}
   {% if new_link %}<div class="notice invite"><strong>Your invitation is ready</strong><p>Copy it now and send it privately. The complete link is shown only once.</p><div class="copy-row"><input id="setup-invite" readonly value="{{ new_link }}" aria-label="New setup invitation"><button class="button secondary" type="button" data-copy="setup-invite">Copy link</button></div></div>{% endif %}
 </section>
@@ -18,7 +18,7 @@
     {% for link in links %}
     <article class="invitation-row">
       <span class="invitation-mark" aria-hidden="true">{{ icon('link') }}</span>
-      <div class="invitation-details"><h3>{{ link.label }}{% if link.purpose=="reconnect" %} <span class="chip">Existing account</span>{% endif %}</h3><p>Created {{ link.created|setup_time }}<span class="invitation-expiry">Expires {{ (link.session_expires if link.state=='claimed' else link.expires)|setup_time }}</span></p>{% if link.account_id %}<a href="{{ url_for('account', ident=link.account_id) }}">Open connected account</a>{% endif %}</div>
+      <div class="invitation-details"><h3>{{ link.label }}{% if link.purpose=="reconnect" %} <span class="chip">Existing account</span>{% elif link.purpose=="instagram" %} <span class="chip">Telegram setup</span>{% endif %}</h3><p>Created {{ link.created|setup_time }}<span class="invitation-expiry">Expires {{ (link.session_expires if link.state=='claimed' else link.expires)|setup_time }}</span></p>{% if link.account_id %}<a href="{{ url_for('account', ident=link.account_id) }}">Open connected account</a>{% endif %}</div>
       <span class="status {{ 'online' if link.state == 'completed' else 'warning' if link.state == 'claimed' else '' }}">{{ {'pending':'Ready to share','claimed':'Setup in progress','completed':'Setup completed','revoked':'Disabled','expired':'Expired'}.get(link.state,link.state) }}</span>
       {% if link.state in ['pending','claimed','completed'] %}<form method="post" action="{{ url_for('setup_disable', ident=link.id) }}" data-confirm="Disable this invitation and close its temporary browser? An already connected account will keep its own controls."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="button secondary">Disable link</button></form>{% endif %}
     </article>
@@ -27,5 +27,5 @@
     {% endfor %}
   </div>
 </section>
-<p class="field-note">After setup, approve the Telegram identity and press Start on the account page. Disabling a completed setup also invalidates its unused Telegram invitation; it does not stop an approved account.</p>
+<p class="field-note">For new Messenger accounts, approve the Telegram identity and press Start on the account page. Instagram setup uses the already approved Telegram identity and starts after the owner confirms the signed-in session.</p>
 {% endblock %}
