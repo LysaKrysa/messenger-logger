@@ -39,6 +39,47 @@ SIGNAL_DIAGNOSTIC = re.compile(
     rb"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2}) "
     rb"[A-Za-z0-9_.-]+\.go:\d+ \xe2\x96\xb6  "
 )
+MAX_NATIVE_LOG_LINE = 16 * 1024
+
+
+class NativeDiagnostics:
+    """Count recognized pinned-library log categories; never retain log text."""
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.counts = dict.fromkeys(("stderr_lines", "oversized_logs", "unavailable", "view_once_unavailable", "missing_session",
+                                    "missing_sender_key", "missing_prekey", "identity_changed", "bad_mac", "other_decrypt"), 0)
+
+    def record(self, raw, *, signal=False):
+        value = raw.lower()
+        category = None
+        if b"unavailable message " in value:
+            category = "view_once_unavailable" if b'(type: "view_once")' in value else "unavailable"
+        elif b"error decrypting message " in value or signal:
+            for name, markers in (
+                ("missing_sender_key", (b"no sender key",)),
+                ("missing_prekey", (b"no signed prekey", b"prekey store didn't return one-time key")),
+                ("identity_changed", (b"untrusted identity", b"invalid signature on device key")),
+                ("bad_mac", (b"mismatching mac in signal message",)),
+                ("missing_session", (b"no session found for user", b"no valid sessions", b"uninitialized session")),
+            ):
+                if any(marker in value for marker in markers):
+                    category = name
+                    break
+            if category is None and b"error decrypting message " in value:
+                category = "other_decrypt"
+        with self.lock:
+            if not signal:
+                self.counts["stderr_lines"] += 1
+            if category:
+                self.counts[category] += 1
+
+    def oversized(self):
+        with self.lock:
+            self.counts["oversized_logs"] += 1
+
+    def snapshot(self):
+        with self.lock:
+            return dict(self.counts)
 
 
 class BridgeFailure(RuntimeError):
@@ -180,13 +221,44 @@ class Bridge:
         self.failure: BridgeFailure | None = None
         self.native_diagnostics = 0
         self._diagnostic_levels = set()
+        self._native_issues = NativeDiagnostics()
         child_env = {key: value for key, value in os.environ.items() if not key.startswith(("FB_", "TELEGRAM_"))}
         self.process = subprocess.Popen(
             [str(binary.resolve())], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, env=child_env,
+            stderr=subprocess.PIPE, env=child_env,
         )
+        self._stderr_reader = threading.Thread(target=self._read_stderr, name="bridge-diagnostics", daemon=True)
+        self._stderr_reader.start()
         self._reader = threading.Thread(target=self._read, name="bridge-reader", daemon=True)
         self._reader.start()
+
+    def native_snapshot(self):
+        return self._native_issues.snapshot()
+
+    def _read_stderr(self):
+        # Drain independently of JSON RPC. Only fixed counters leave this method;
+        # discard oversized lines in full so no fragment becomes another record.
+        dropping = False
+        try:
+            while True:
+                raw = self.process.stderr.readline(MAX_NATIVE_LOG_LINE + 1)
+                if not raw:
+                    return
+                if dropping:
+                    if raw.endswith(b"\n"):
+                        dropping = False
+                    raw = b""
+                    continue
+                if len(raw) > MAX_NATIVE_LOG_LINE or not raw.endswith(b"\n"):
+                    self._native_issues.oversized()
+                    dropping = not raw.endswith(b"\n")
+                    raw = b""
+                    continue
+                self._native_issues.record(raw)
+                raw = b""
+        except (OSError, ValueError):
+            if not self._closed.is_set():
+                self._fail("Messenger bridge diagnostic pipe failed; private details hidden.")
 
     def _fail(self, message: str, *, terminal=False) -> None:
         if self.failure is None and not self._closed.is_set():
@@ -222,9 +294,11 @@ class Bridge:
                 if diagnostic is not None:
                     level = diagnostic.group(1).decode("ascii")
                     self.native_diagnostics += 1
+                    self._native_issues.record(raw[:MAX_NATIVE_LOG_LINE], signal=True)
                     if level not in self._diagnostic_levels:
                         self._diagnostic_levels.add(level)
                         print("Native Signal diagnostic suppressed (level=" + level + "); provider text hidden. Listener continuing.", flush=True)
+                    raw = b""
                     continue
                 record_format = "json_object" if stripped.startswith(b"{") else ("json_array" if stripped.startswith(b"[") else "non_json_prefix")
                 stage = "json_decode"
@@ -436,7 +510,9 @@ class Bridge:
                 self.process.kill()
                 self.process.wait(timeout=3)
         self._reader.join(timeout=3)
+        self._stderr_reader.join(timeout=3)
         self.process.stdout.close()
+        self.process.stderr.close()
 
 
 if __name__ == "__main__":

@@ -135,6 +135,7 @@ class LoggerRuntime:
         self.deleted_this_run = 0
         self.last_event = None
         self.capture_monitor = CaptureMonitor(self.started_at)
+        self.next_capture_diagnostics = 0
 
     def report(self, message):
         # All callers use fixed text plus numeric counters / allowlisted reason codes.
@@ -196,7 +197,8 @@ class LoggerRuntime:
         self.bridge.check_contract()
         self.report("Native bridge supports view-once media and contact lookup.")
         expected_id = cookies[SESSION_ID[self.platform]]
-        config = {"cookies": cookies, "platform": self.platform, "logLevel": "none"}
+        # Bridge stderr is privately drained into allowlisted numeric counters.
+        config = {"cookies": cookies, "platform": self.platform, "logLevel": "warn"}
         if self.platform == "facebook":
             device_dir = self.root / "messenger-modern-state" / expected_id
             device_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -280,6 +282,7 @@ class LoggerRuntime:
             self.relay.report_conversations()
             self.relay.report_stats(health, self.started_at, self.messages_this_run, self.deleted_this_run, self.logged_this_run, encrypted)
             self.relay.report_capture(self.capture_monitor.snapshot())
+            self.report_capture_diagnostics()
             if ready:
                 if disconnected_since is not None:
                     self.report(self.service + " listener ready after reconnecting.")
@@ -296,6 +299,17 @@ class LoggerRuntime:
             raise self.consumer_failure
         if self.media and self.media.failure:
             raise self.media.failure
+
+    def report_capture_diagnostics(self):
+        if time.monotonic() < self.next_capture_diagnostics:
+            return
+        self.next_capture_diagnostics = time.monotonic() + 60
+        intake = self.store.intake_snapshot()
+        controls_ready = not self.relay.enabled or not self.relay.gateway or self.relay.filters_ready
+        self.report("Capture intake: " + "; ".join(key + "=" + str(value) for key, value in intake.items())
+                    + "; controls_ready=" + str(controls_ready).lower() + ".")
+        native = self.bridge.native_snapshot()
+        self.report("Native crypto diagnostics: " + "; ".join(key + "=" + str(value) for key, value in native.items()) + ".")
 
     def close(self):
         self.stop.set()

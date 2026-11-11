@@ -644,3 +644,32 @@ logs report skipped records at most once per five minutes and sync failures at
 most once per minute, using fixed categories without message content. A subsequent
 accepted batch records recovery. Dashboard-copy retries do not resend Telegram
 notifications and do not repair unavailable or undecryptable provider events.
+
+### Diagnose a connected account that captures no new messages
+
+Worker logs contain two aggregate summaries per minute. **Capture intake** counts
+supported message events received by the Python adapter and the admission stage
+that rejected them: timestamp checks, capture policy, own/unattributed sender,
+duplicate detection, or successful storage. `controls_ready=false` means the
+worker has not obtained a valid conversation policy from the gateway.
+
+**Native crypto diagnostics** classifies recognized warning patterns in the pinned
+native libraries. Categories distinguish unavailable ciphertext, explicitly
+unavailable view-once events, missing sessions, missing sender keys, missing
+prekeys, identity/signature warnings, MAC errors and other decryption errors.
+Counts can include retries, own-device events and unrelated traffic. They cannot
+identify the number of unique missed incoming messages or prove which warning
+belongs to a particular test message. `stderr_lines` includes unrelated native
+warnings. Unrecognized text is discarded, and oversized lines are discarded in
+full. No native warning text, message bodies, identifiers, cookies or keys are
+written to these summaries.
+
+Read the latest summaries for an account with:
+
+```bash
+sudo docker logs --since 5m YOUR_ACCOUNT_CONTAINER 2>&1 |
+  grep -E 'Capture intake:|Native crypto diagnostics:' | tail -n 2
+```
+
+These diagnostics do not reset encryption state, alter the future-only capture
+cutoff, restore missing ciphertext or automatically resend Telegram notifications.

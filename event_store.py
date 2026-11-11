@@ -86,6 +86,8 @@ class EventStore:
         if self.run_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", self.run_id):
             raise StoreFailure("Invalid run identifier.")
         self.lock = threading.RLock()
+        self._message_intake = dict.fromkeys(("received", "invalid_data", "timestamp_rejected", "capture_filtered",
+                                             "own_or_unattributed", "duplicate", "saved"), 0)
         # Unattributed deletions wait briefly in memory for their incoming original.
         # Never create a persistent tombstone that could belong to our own message.
         self.pending_deletions = {}
@@ -498,10 +500,20 @@ class EventStore:
             if event.get("type") == "metadata":
                 self._metadata(event.get("data") or {})
                 return None
-            if event.get("type") not in EVENT_NAMES or not self._future_event(event):
+            kind = event.get("type")
+            is_message = kind in {"message", "e2eeMessage"}
+            if is_message:
+                self._message_intake["received"] += 1
+            if kind not in EVENT_NAMES:
                 return None
             data = event.get("data")
             if not isinstance(data, dict):
+                if is_message:
+                    self._message_intake["invalid_data"] += 1
+                return None
+            if not self._future_event(event):
+                if is_message:
+                    self._message_intake["timestamp_rejected"] += 1
                 return None
             mid = identifier(data.get("id") if EVENT_NAMES[event["type"]] == "message" else data.get("messageId"))
             tid = identifier(data.get("threadId") or data.get("chatJid") or data.get("chat")) or self._resolve_thread(mid) or "unresolved"
@@ -513,8 +525,12 @@ class EventStore:
                 if title:
                     self.db.execute("UPDATE threads SET name=? WHERE id=?", (title, tid))
             if not self.capture_allowed(tid):
+                if is_message:
+                    self._message_intake["capture_filtered"] += 1
                 return None
             if not self._incoming(event, received):
+                if is_message:
+                    self._message_intake["own_or_unattributed"] += 1
                 return None
             with self.db:
                 value = self._normalize(event)
@@ -531,6 +547,8 @@ class EventStore:
                     identity = serialized
                 key = hashlib.sha256(identity.encode()).hexdigest()
                 if self.db.execute("SELECT 1 FROM events WHERE dedup_key=?", (key,)).fetchone():
+                    if is_message:
+                        self._message_intake["duplicate"] += 1
                     return None
                 body = self._body(value)
                 date = datetime.fromtimestamp(received, self.zone)
@@ -570,6 +588,7 @@ class EventStore:
                     summary["telegram"] = self._telegram_event(value)
             self._export_pending()
             if value["type"] == "message":
+                self._message_intake["saved"] += 1
                 pending = self.pending_deletions.pop((value["thread_id"], value["message_id"]), None)
                 if pending is None and self._resolve_thread(value["message_id"]) == value["thread_id"]:
                     pending = self.pending_deletions.pop(("unresolved", value["message_id"]), None)
@@ -579,6 +598,10 @@ class EventStore:
                     if following:
                         summary["following"] = following
             return summary
+
+    def intake_snapshot(self):
+        with self.lock:
+            return dict(self._message_intake)
 
     def update_media(self, thread_id, message_id, index, result):
         """Update local download state without changing the append-only chat journal."""
