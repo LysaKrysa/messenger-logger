@@ -51,7 +51,7 @@ python3 - "$LOGGER_SOURCE_DIR" <<'PY'
 from pathlib import Path
 import shutil, sys
 source, target = Path(sys.argv[1]), Path('/opt/messenger-dashboard/app')
-modules = ('bridge_rpc.py', 'event_store.py', 'logger.py', 'view_messages.py', 'media_saver.py', 'telegram_relay.py',
+modules = ('bridge_rpc.py', 'capture_monitor.py', 'event_store.py', 'logger.py', 'view_messages.py', 'media_saver.py', 'telegram_relay.py',
            'telegram_format.py', 'telegram_i18n.py', 'conversation_filters.py', 'telegram_topics.py', 'identities.py', 'contact_names.py', 'retention.py', 'install_bridge.py',
            'check_telegram_topics.py', 'requirements-dashboard.txt', 'LICENSE', 'NOTICE', 'THIRD_PARTY.md')
 for name in modules:

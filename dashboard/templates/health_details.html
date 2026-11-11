@@ -1,0 +1,13 @@
+<p class="muted">{{ pt('health_note') }}</p>
+<div class="notice {{ 'warning' if health.issues else '' }}" role="status">{{ pt(health.state) }}</div>
+{% if not health.fresh %}<p class="field-note">{{ pt('health_missing') }}</p>{% endif %}
+<dl class="portal-facts">
+  <div><dt>{{ pt('connection') if account.platform == 'facebook' else pt('ig_connection') }}</dt><dd>{{ pt('connected') if health.connected else pt('paused') if not account.desired else pt('unknown') }}</dd></div>
+  <div><dt>{{ pt('capture_last') }}</dt><dd>{{ health.report.last_capture|portaldate if health.report.last_capture else '—' }}</dd></div>
+  <div><dt>{{ pt('health_updated') }}</dt><dd>{{ health.report.updated|portaldate if health.report.updated else '—' }}</dd></div>
+</dl>
+<h2>{{ pt('health_counts') }}</h2>
+<div class="health-grid">{% for kind in ['decryption','media','queue'] %}<section class="health-metric"><h3>{{ pt('health_' ~ kind) }}</h3><p class="health-number">{{ health.report.get('counts',{}).get(kind,'—') }}</p><p class="field-note">{{ pt('recent_warnings') }} · {{ health.report.get('recent',{}).get(kind,'—') }}</p><p class="field-note">{{ pt('last_warning') }} · {{ health.report.get('last',{}).get(kind)|portaldate if health.report.get('last',{}).get(kind) else '—' }}</p></section>{% endfor %}</div>
+<p class="field-note">{{ pt('health_warning_note') }}</p>
+{% if health.stats %}<h2>{{ pt('run_title') }}</h2><dl class="portal-facts">{% for key in ['run_messages','run_deletions','run_events'] %}<div><dt>{{ pt(key) }}</dt><dd>{{ health.stats.get(key,'—') }}</dd></div>{% endfor %}<div><dt>{{ pt('regular') }}</dt><dd>{{ pt('connected') if health.stats.regular_connected else pt('reconnecting') }}</dd></div>{% if account.platform == 'facebook' %}<div><dt>{{ pt('encrypted') }}</dt><dd>{{ pt('connected') if health.stats.encrypted_connected else pt('reconnecting') }}</dd></div>{% endif %}</dl>{% endif %}
+<h2>{{ pt('delivery_title') }}</h2><dl class="portal-facts">{% for outcome in ['sent','failed','uncertain'] %}<div><dt>{{ pt('delivery_' ~ outcome) }}</dt><dd>{{ health.deliveries.get(outcome,0) }}</dd></div>{% endfor %}</dl>

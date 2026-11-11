@@ -504,9 +504,11 @@ class Store:
             else:
                 raise DashboardError("Unknown account action.")
             if action in {"approve", "disconnect", "remove"}:
+                db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("archive_since:" + ident, json.dumps(self.clock())))
+                db.execute("DELETE FROM settings WHERE key IN (?,?,?)", ("capture_health:" + ident, "capture_monitor:" + ident, "archive_sync:" + ident))
                 db.execute("DELETE FROM settings WHERE key=?", ("filters:" + ident,))
                 db.execute("DELETE FROM settings WHERE key=?", ("worker_stats:" + ident,))
-                for table in ("conversation_catalog", "delivery_history", "resend_intents", "portal_links", "portal_sessions", "portal_profiles"):
+                for table in ("message_archive", "conversation_catalog", "delivery_history", "resend_intents", "portal_links", "portal_sessions", "portal_profiles"):
                     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
                         db.execute("DELETE FROM " + table + " WHERE account_id=?", (ident,))
 

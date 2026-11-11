@@ -53,6 +53,8 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
     from .broker import TelegramAPI
     from .deliveries import Deliveries
     deliveries = Deliveries(store, delivery_api or TelegramAPI(store))
+    from .capture_health import CaptureHealth
+    capture_health = CaptureHealth(store)
     app.extensions["deliveries"] = deliveries
     from .setup_web import install
     install(app, store, origin, browser_client)
@@ -281,6 +283,20 @@ def create_app(store=None, *, origin=None, status_root=None, testing=False, brow
             store.configure_bot(token, verify_bot(token))
             return redirect(url_for("bot_settings"))
         return render_template("bot.html", bot_status=store.setting("bot_status", "Waiting for setup"))
+
+    @app.get("/health")
+    def health():
+        from .portal_i18n import text
+        return render_template("health.html", accounts=[(row, capture_health.view(row)) for row in store.accounts()], pt=lambda key: text("en", key))
+
+    @app.get("/accounts/<ident>/health")
+    def account_health(ident):
+        from .portal_i18n import text
+        row = store.account(ident)
+        if row is None:
+            abort(404)
+        stats = store.setting("worker_stats:" + ident, {})
+        return render_template("account_health.html", account=row, health=capture_health.view(row), pt=lambda key: text("en", key))
 
     @app.errorhandler(DashboardError)
     def invalid(error):

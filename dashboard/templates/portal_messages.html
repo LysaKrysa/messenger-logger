@@ -1,0 +1,32 @@
+{% extends 'portal_base.html' %}
+{% block breadcrumb %}{{ pt('message_viewer') }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>{{ pt('message_viewer') }}</h1><p class="muted">{{ pt('viewer_note') }}</p></div></div>
+<p class="field-note">{{ pt('sync_time') }} · {{ sync.updated|portaldate if sync.updated else '—' }}</p>
+<div class="message-workspace">
+<aside class="panel message-conversations" aria-label="{{ pt('chats') }}">
+<form method="get"><label for="chat-q">{{ pt('conversation_search') }}</label><input id="chat-q" name="chat_q" value="{{ filters.chat_q }}" maxlength="100"><button class="button secondary">{{ pt('apply_filters') }}</button></form>
+<nav class="conversation-list" aria-label="{{ pt('choose_conversation') }}">{% for chat in conversations %}<a class="conversation-item {{ 'selected' if selected == chat.id else '' }}" href="{{ url_for('portal.messages',conversation=chat.id,chat_q=filters.chat_q) }}" {% if selected == chat.id %}aria-current="page"{% endif %}><strong>{{ chat.name or pt('unknown_chat') }}</strong><span>{{ chat.messages }} · {{ chat.latest|portaldate }}</span></a>{% else %}<p class="muted">{{ pt('viewer_no_chats') }}</p>{% endfor %}</nav>
+</aside>
+<section class="message-thread" aria-label="{{ pt('messages') }}">
+{% if selected %}
+<section class="panel"><h2>{% for chat in conversations if chat.id == selected %}{{ chat.name or pt('unknown_chat') }}{% endfor %}</h2><form method="get" class="message-filters">
+<input type="hidden" name="conversation" value="{{ selected }}"><input type="hidden" name="chat_q" value="{{ filters.chat_q }}">
+<div><label for="message-q">{{ pt('message_search') }}</label><input id="message-q" name="q" value="{{ filters.q }}" maxlength="200"></div>
+<div><label for="message-sender">{{ pt('sender_search') }}</label><input id="message-sender" name="sender" value="{{ filters.sender }}" maxlength="100"></div>
+<div><label for="message-status">{{ pt('message_status') }}</label><select id="message-status" name="status">{% for value,label in [('all','all_messages'),('deleted','deleted_messages'),('undeleted','undeleted_messages')] %}<option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ pt(label) }}</option>{% endfor %}</select></div>
+<div><label for="message-kind">{{ pt('message_type') }}</label><select id="message-kind" name="kind">{% for value in ['all','text','image','video','voice','audio','file'] %}<option value="{{ value }}" {% if filters.kind == value %}selected{% endif %}>{{ pt('type_' ~ value) }}</option>{% endfor %}</select></div>
+<div><label for="message-from">{{ pt('date_from') }}</label><input id="message-from" name="from" type="date" value="{{ filters['from'] }}"></div><div><label for="message-to">{{ pt('date_to') }}</label><input id="message-to" name="to" type="date" value="{{ filters.to }}"></div>
+<div class="button-group"><button class="button primary">{{ pt('apply_filters') }}</button><a class="button secondary" href="{{ url_for('portal.messages',conversation=selected) }}">{{ pt('clear_filters') }}</a></div>
+</form></section>
+<div class="message-list">{% for message in messages %}<article class="panel message-card"><header><strong>{{ message.sender }}</strong><span class="chip {{ 'deleted-chip' if message.deleted else '' }}">{{ pt('message_deleted' if message.deleted else 'message_undeleted') }}</span></header>
+<p class="field-note">{{ pt('sent_at') }} · {{ (message.created_ms / 1000)|portaldate }}{% if message.deleted_at_ms %}<br>{{ pt('deleted_at') }} · {{ (message.deleted_at_ms / 1000)|portaldate }}{% endif %}</p>
+{% if message.preview_truncated %}<p class="notice warning">{{ pt('preview_truncated') }}</p>{% endif %}
+{% if message.text %}<div class="message-text">{{ message.text }}</div>{% endif %}
+{% if message.last_edit_ms and message.original_text != message.text %}<details><summary>{{ pt('edited_message') }} · {{ pt('original_message') }}</summary><div class="message-text">{{ message.original_text or '' }}</div></details>{% endif %}
+{% for media in message.attachments %}<div class="message-attachment"><strong>{{ media.fileName or pt('type_' ~ media.type) if media.type in ['image','video','voice','audio','file'] else media.fileName or pt('attachments') }}</strong><span>{{ pt('media_' ~ media.downloadStatus) if media.downloadStatus in ['saved','pending','failed','interrupted','disabled'] else pt('media_unknown') }}{% if media.viewOnce %} · {{ pt('viewer_view_once') }}{% endif %}</span></div>{% endfor %}
+</article>{% else %}<section class="panel"><p class="muted">{{ pt('viewer_empty') }}</p></section>{% endfor %}</div>
+<nav class="button-group message-pages" aria-label="{{ pt('navigation') }}">{% if filters.offset != '0' %}<a class="button secondary" href="{{ page_url(0) }}">{{ pt('viewer_newest') }}</a>{% endif %}{% if next_page is not none %}<a class="button secondary" href="{{ page_url(next_page) }}">{{ pt('viewer_more') }}</a>{% endif %}</nav>
+<p class="field-note">{{ pt('attachment_note') }}</p>
+{% endif %}</section></div>
+{% endblock %}

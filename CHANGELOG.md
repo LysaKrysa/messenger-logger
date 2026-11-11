@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Capture health and private message viewer
+
+- Add administrator and owner capture health pages with fresh/stale reports,
+  successful capture times, warning counters and delivery outcomes.
+- Add localized owner-only capture alerts with independent preferences,
+  cooldowns and qualified recovery notices.
+- Add an encrypted, 72-hour message viewer grouped by conversation, with
+  deleted/undeleted, text, sender, date and attachment filters.
+
 ## Unreleased — Instagram sign-in links
 
 - Add `/instagram` to the shared Telegram bot. Approved Messenger owners can

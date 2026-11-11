@@ -14,6 +14,8 @@ from .portal_i18n import text
 from .store import DashboardError
 from .connection_alerts import ConnectionAlerts
 from telegram_i18n import tr
+from .message_archive import MessageArchive
+from .capture_health import CaptureHealth
 
 COOKIE, CLAIM_COOKIE = "__Host-messenger_portal", "__Host-messenger_portal_claim"
 
@@ -23,6 +25,8 @@ def install(app, store, origin, deliveries, status_root):
     auth = PortalAuth(store)
     app.extensions["portal_auth"] = auth
     reconnects = ConnectionAlerts(store, deliveries.api, origin=origin)
+    archive, capture_health = MessageArchive(store), CaptureHealth(store)
+    app.extensions.update(message_archive=archive, capture_health=capture_health)
 
     def language():
         return getattr(g, "portal_language", "pl")
@@ -150,6 +154,33 @@ def install(app, store, origin, deliveries, status_root):
         if action not in {"pause", "resume"} or not store.user_control(g.owner["chat_id"], action, expected=g.owner):
             raise DashboardError("Capture setting unavailable.")
         return redirect(url_for("portal.home", saved="capture_saved"))
+
+    @portal.route("/me/health", methods=["GET", "POST"])
+    def health():
+        if request.method == "POST":
+            capture_health.preference(g.owner, request.form.get("alerts") == "on")
+            return redirect(url_for("portal.health", saved="saved"))
+        return render_template("portal_health.html", health=capture_health.view(g.owner),
+                               stats=store.setting("worker_stats:" + g.owner["id"], {}), notice=notice())
+
+    @portal.get("/me/messages")
+    def messages():
+        if not store.take_limit("archive-view:" + g.owner["id"], 30, 60):
+            abort(429)
+        archive.cleanup()
+        chats = archive.conversations_for(g.owner, request.args.get("chat_q", ""))
+        filters = {key: request.args.get(key, "") for key in ("q", "sender", "from", "to", "chat_q")}
+        filters.update(status=request.args.get("status", "all"), kind=request.args.get("kind", "all"), offset=request.args.get("offset", "0"))
+        selected = request.args.get("conversation") or (chats[0]["id"] if chats else None)
+        values, next_page = archive.page(g.owner, selected, filters) if selected else ([], None)
+        sync = store.setting("archive_sync:" + g.owner["id"], {})
+        def page_url(page):
+            params = dict(request.args)
+            params.update(conversation=selected, offset=page)
+            return url_for("portal.messages", **params)
+        return render_template("portal_messages.html", conversations=chats, selected=selected, filters=filters,
+                               messages=values, next_page=next_page, page_url=page_url,
+                               sync=sync if sync.get("pair_epoch") == g.owner["pair_epoch"] else {})
 
     @portal.route("/me/settings", methods=["GET", "POST"])
     def settings():

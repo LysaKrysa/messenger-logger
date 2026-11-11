@@ -21,6 +21,7 @@ from bridge_rpc import Bridge, BridgeBusy, BridgeFailure, safe_reason, verify_bi
 from event_store import EventStore, StoreFailure
 from install_bridge import smoke_test
 from media_saver import MediaSaver
+from capture_monitor import CaptureMonitor
 from telegram_relay import TelegramRelay, TelegramConfigurationError
 from contact_names import ContactNames
 from retention import RETENTION_SECONDS, CLEANUP_INTERVAL, cleanup_data, cleanup_status
@@ -133,9 +134,11 @@ class LoggerRuntime:
         self.messages_this_run = 0
         self.deleted_this_run = 0
         self.last_event = None
+        self.capture_monitor = CaptureMonitor(self.started_at)
 
     def report(self, message):
         # All callers use fixed text plus numeric counters / allowlisted reason codes.
+        self.capture_monitor.report(message)
         with self._report_lock:
             stamp = datetime.now(self.zone).isoformat(timespec="seconds")
             print(stamp + " | " + message, flush=True)
@@ -172,6 +175,7 @@ class LoggerRuntime:
                         self.last_event = time.time()
                         self.logged_this_run += 1
                         if summary["type"] == "message":
+                            self.capture_monitor.captured()
                             self.messages_this_run += 1
                             if self.messages_this_run == 1:
                                 self.report("First message saved by this run. Check the daily log to verify its content.")
@@ -275,6 +279,7 @@ class LoggerRuntime:
             self.relay.report_status(ready, self.last_event)
             self.relay.report_conversations()
             self.relay.report_stats(health, self.started_at, self.messages_this_run, self.deleted_this_run, self.logged_this_run, encrypted)
+            self.relay.report_capture(self.capture_monitor.snapshot())
             if ready:
                 if disconnected_since is not None:
                     self.report(self.service + " listener ready after reconnecting.")

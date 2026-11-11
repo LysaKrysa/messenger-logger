@@ -69,3 +69,46 @@ TEXT = {
 
 def text(language, key, **values):
     return TEXT[language if language in TEXT else "pl"][key].format(**values)
+
+
+TEXT["en"].update({
+    "health": "Capture health", "capture_reporting": "Reporting · no recent warning threshold reached", "capture_attention": "Capture needs attention",
+    "health_note": "Connection status and successful capture are measured separately. Quiet conversations do not indicate a capture failure.",
+    "health_missing": "Waiting for an updated worker health report. Older reports do not establish current capture health.",
+    "health_warning_note": "Encryption warnings count events, including retries and unavailable encrypted events. They do not count unique missed incoming messages or establish that earlier content was recovered.",
+    "health_counts": "Warnings in this process session", "health_decryption": "Encryption / unavailable events", "health_media": "Failed attachment downloads", "health_queue": "Queue / notification skips",
+    "last_warning": "Last warning", "recent_warnings": "Last 10 minutes", "total_warnings": "This session", "capture_alerts": "Telegram alerts for capture problems",
+    "capture_alerts_note": "Repeated encryption or download warnings, and queue skips, trigger an alert in your paired private chat. Each category has a six-hour cooldown. Capture alerts also arrive during quiet mode.",
+    "capture_last": "Last successfully captured incoming message", "health_updated": "Health report received", "health_scope": "Health for this account only",
+    "message_viewer": "Message viewer", "viewer_note": "Incoming messages captured by this logger, grouped by conversation. Copies expire within 72 hours of the original message. Synchronization can take a few seconds; pending copies appear when the worker reports them.",
+    "conversation_search": "Find a conversation", "choose_conversation": "Choose a conversation", "message_search": "Search message text or filenames", "sender_search": "Sender name",
+    "message_status": "Message status", "all_messages": "All messages", "deleted_messages": "Deleted", "undeleted_messages": "Undeleted",
+    "message_type": "Message type", "type_all": "All types", "type_text": "Text", "type_image": "Images", "type_video": "Videos", "type_voice": "Voice recordings", "type_audio": "Audio", "type_file": "Files",
+    "date_from": "Sent from", "date_to": "Sent through", "apply_filters": "Search", "clear_filters": "Clear filters", "viewer_empty": "No matching messages on this page.",
+    "viewer_no_chats": "No retained conversations have been synchronized yet.", "message_deleted": "Deleted / unsent", "message_undeleted": "Undeleted", "sent_at": "Sent", "deleted_at": "Deletion observed",
+    "edited_message": "Edited message", "original_message": "Original text", "viewer_more": "Continue search / older messages", "viewer_newest": "Newest results", "sync_time": "Last archive sync",
+    "attachment_status": "Attachment capture", "attachment_note": "Attachment entries show metadata and download status. Saved files can be retrieved through Telegram.",
+    "media_saved": "Saved", "media_pending": "Downloading", "media_failed": "Download failed", "media_interrupted": "Interrupted", "media_disabled": "Downloads disabled", "media_unknown": "Metadata only", "viewer_view_once": "View once"
+})
+TEXT["pl"].update({
+    "health": "Stan zapisu", "capture_reporting": "Raportowanie · brak przekroczonego progu ostrzeżeń", "capture_attention": "Zapis wymaga uwagi",
+    "health_note": "Stan połączenia i poprawny zapis są mierzone osobno. Brak nowych wiadomości w rozmowach nie oznacza awarii zapisu.",
+    "health_missing": "Oczekiwanie na aktualny raport procesu. Starsze raporty nie potwierdzają bieżącego stanu zapisu.",
+    "health_warning_note": "Ostrzeżenia szyfrowania liczą zdarzenia, w tym ponowienia i niedostępne zdarzenia szyfrowane. Nie oznaczają liczby różnych pominiętych wiadomości przychodzących ani odzyskania wcześniejszej treści.",
+    "health_counts": "Ostrzeżenia w tej sesji procesu", "health_decryption": "Szyfrowanie / niedostępne zdarzenia", "health_media": "Nieudane pobrania załączników", "health_queue": "Pominięcia kolejki / powiadomień",
+    "last_warning": "Ostatnie ostrzeżenie", "recent_warnings": "Ostatnie 10 minut", "total_warnings": "Ta sesja", "capture_alerts": "Alerty Telegrama o problemach z zapisem",
+    "capture_alerts_note": "Powtarzające się ostrzeżenia szyfrowania lub pobierania oraz pominięcia kolejki wywołują alert na Twoim połączonym prywatnym czacie. Każda kategoria ma sześciogodzinny odstęp. Alerty zapisu docierają również podczas wyciszenia.",
+    "capture_last": "Ostatnia poprawnie zapisana wiadomość przychodząca", "health_updated": "Odebrano raport stanu", "health_scope": "Stan tylko tego konta",
+    "message_viewer": "Przeglądarka wiadomości", "viewer_note": "Wiadomości przychodzące zapisane przez ten program, pogrupowane według rozmowy. Kopie wygasają do 72 godzin od oryginalnej wiadomości. Synchronizacja może potrwać kilka sekund; oczekujące kopie pojawią się po raporcie procesu.",
+    "conversation_search": "Znajdź rozmowę", "choose_conversation": "Wybierz rozmowę", "message_search": "Szukaj w treści lub nazwach plików", "sender_search": "Nazwa nadawcy",
+    "message_status": "Stan wiadomości", "all_messages": "Wszystkie wiadomości", "deleted_messages": "Usunięte", "undeleted_messages": "Nieusunięte",
+    "message_type": "Typ wiadomości", "type_all": "Wszystkie typy", "type_text": "Tekst", "type_image": "Zdjęcia", "type_video": "Filmy", "type_voice": "Wiadomości głosowe", "type_audio": "Dźwięk", "type_file": "Pliki",
+    "date_from": "Wysłane od", "date_to": "Wysłane do", "apply_filters": "Szukaj", "clear_filters": "Wyczyść filtry", "viewer_empty": "Brak pasujących wiadomości na tej stronie.",
+    "viewer_no_chats": "Nie zsynchronizowano jeszcze zachowanych rozmów.", "message_deleted": "Usunięto / cofnięto wysłanie", "message_undeleted": "Nieusunięta", "sent_at": "Wysłano", "deleted_at": "Zaobserwowano usunięcie",
+    "edited_message": "Edytowana wiadomość", "original_message": "Oryginalna treść", "viewer_more": "Kontynuuj wyszukiwanie / starsze wiadomości", "viewer_newest": "Najnowsze wyniki", "sync_time": "Ostatnia synchronizacja archiwum",
+    "attachment_status": "Zapis załącznika", "attachment_note": "Załączniki pokazują metadane i stan pobrania. Zapisane pliki można pobrać przez Telegram.",
+    "media_saved": "Zapisano", "media_pending": "Pobieranie", "media_failed": "Błąd pobrania", "media_interrupted": "Przerwano", "media_disabled": "Pobieranie wyłączone", "media_unknown": "Tylko metadane", "viewer_view_once": "Jednorazowe wyświetlenie"
+})
+
+TEXT['en']['preview_truncated'] = 'This web preview is limited to 20,000 characters per text version and 100 attachment entries. Search applies to the displayed preview. The complete captured content is in the local archive.'
+TEXT['pl']['preview_truncated'] = 'Podgląd internetowy obejmuje do 20 000 znaków każdej wersji tekstu i 100 załączników. Wyszukiwanie obejmuje wyświetlany podgląd. Pełna zapisana treść znajduje się w lokalnym archiwum.'

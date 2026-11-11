@@ -107,7 +107,7 @@ Instagram before stopping the dashboard.
 set -euo pipefail
 test -f Dockerfile
 logger_source_dir=$(pwd -P)
-logger_restart_workers=false
+logger_restart_workers=true
 if ! sudo docker run --pull=never --rm --network none \
     --mount "type=bind,source=$logger_source_dir,target=/app,readonly" \
     messenger-logger:modern --self-test; then
@@ -120,7 +120,7 @@ sudo python3 browser/check_container.py
 
 sudo systemctl stop messenger-dashboard-web messenger-dashboard-bot messenger-dashboard-manager messenger-dashboard-browser
 sudo install --backup=numbered -m 644 \
-  bridge_rpc.py install_bridge.py logger.py conversation_filters.py event_store.py \
+  bridge_rpc.py capture_monitor.py install_bridge.py logger.py conversation_filters.py event_store.py \
   media_saver.py telegram_relay.py telegram_i18n.py telegram_topics.py \
   /opt/messenger-dashboard/app/
 sudo install --backup=numbered -m 644 dashboard/*.py /opt/messenger-dashboard/app/dashboard/
@@ -591,3 +591,45 @@ archives, and a recording Docker adapter. They exercise full existing relay
 instances through the destination-checking gateway. They make no real Telegram
 sends or Facebook logins. Live deployment still requires verifying firewall,
 certificate trust, your sessions, and the real Telegram destination.
+
+
+## Capture health and private message viewer
+
+Administrators can open **Capture health** in the sidebar for an account overview,
+or open an account's health page. User profiles have their own **Capture health**
+page and **Message viewer**. User routes resolve the account from the approved
+portal session. The administrator health pages expose diagnostic metadata.
+
+Health reports distinguish connection status, successful incoming capture,
+encryption/unavailable-event warnings, failed media downloads, queue skips and
+Telegram delivery outcomes. Warning counts include retries and can include events
+without identifiable incoming content. They are not counts of unique lost messages.
+Reports older than 90 seconds are shown as stale. Idle conversations alone do not
+trigger warnings.
+
+Capture alerts default to enabled for each pairing. Users can disable them on
+the health page. Three encryption or media warnings within ten minutes, or one
+queue skip, trigger an owner-only alert. Each category has a six-hour cooldown.
+The existing user's Polish/English preference applies. Capture alerts bypass
+quiet mode. A recovery notice requires a subsequent incoming capture and ten
+minutes without new warnings. Earlier content is not assumed recovered.
+
+The message viewer lists conversations separately and searches within the
+selected conversation by text or filename, sender name, date, attachment type,
+and all/deleted/undeleted status. It includes original text for captured edits.
+Attachment entries show metadata and download state. Saved files remain available
+through Telegram's existing download controls.
+
+Workers synchronize encrypted display copies through their authenticated local
+gateway. The dashboard service does not gain access to Docker or worker directories.
+Copies expire no later than 72 hours after message creation/capture, and editing,
+unsending or resynchronizing cannot extend expiry. The bot removes expired copies
+in its regular maintenance loop. Each web query independently excludes expired data.
+Re-pairing removes prior copies and rejects older captures. Cookies, media URLs,
+media keys, device state and local paths are excluded from viewer records.
+
+Updated active workers synchronize their existing retained incoming records, then
+report later edits, deletions and media states. This reads the local archive and
+never fetches old provider history. A paused worker resumes synchronization when
+started. Filters are applied to captured content; exclusions prevent future capture.
+The viewer does not reveal the logged-in account's outgoing messages.

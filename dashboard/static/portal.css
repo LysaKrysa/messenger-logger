@@ -30,3 +30,25 @@
   .portal-metrics .metric:nth-child(3) { border-top: 0; }
   .portal-columns { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
 }
+.health-grid,.health-accounts { display:grid;grid-template-columns:minmax(0,1fr);gap:20px; }
+.health-metric { padding:16px 0;border-bottom:1px solid var(--border); }
+.health-metric h3 { font-size:14px;font-weight:500;margin:0; }
+.health-number { font-size:28px;font-weight:600;margin:12px 0;font-variant-numeric:tabular-nums; }
+.message-workspace { display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start; }
+.message-workspace > *, .message-filters > * { min-width:0; }
+.conversation-list { display:flex;flex-direction:column;margin-top:16px;max-height:320px;overflow:auto; }
+.conversation-item { display:flex;flex-direction:column;gap:6px;padding:14px 12px;min-height:44px;border-bottom:1px solid var(--border);color:var(--text);overflow-wrap:anywhere; }
+.conversation-item span { color:var(--muted);font-size:12px; }
+.conversation-item.selected { background:var(--raised);box-shadow:inset 3px 0 var(--primary); }
+.message-filters { display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:20px; }
+.message-filters label { margin-top:0; }
+.message-filters .button-group { grid-column:1/-1;margin-top:8px; }
+.message-card { margin:0 0 16px; }
+.message-card header { display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap; }
+.message-text { white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:18px 0; }
+.message-attachment { display:flex;flex-direction:column;gap:6px;padding:14px 0;border-top:1px solid var(--border);overflow-wrap:anywhere; }
+.message-attachment span { font-size:13px;color:var(--muted); }
+.deleted-chip { color:var(--muted); }
+.message-pages { margin:20px 0; }
+@media (min-width:640px) { .health-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }.message-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (min-width:1100px) { .health-accounts { grid-template-columns:repeat(2,minmax(0,1fr)); }.message-workspace { grid-template-columns:minmax(220px,280px) minmax(0,1fr); }.conversation-list { max-height:65vh; } }

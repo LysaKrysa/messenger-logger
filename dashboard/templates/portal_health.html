@@ -1,0 +1,8 @@
+{% extends 'portal_base.html' %}
+{% block breadcrumb %}{{ pt('health') }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>{{ pt('health') }}</h1><p class="muted">{{ pt('health_scope') }}</p></div><a class="button secondary" href="{{ url_for('portal.health') }}">{{ pt('refresh') }}</a></div>
+{% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
+<section class="panel">{% set account = owner %}{% include 'health_details.html' %}</section>
+<section class="panel"><form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><label class="check"><input type="checkbox" name="alerts" {% if health.alerts %}checked{% endif %}><span>{{ pt('capture_alerts') }}</span></label><p class="field-note">{{ pt('capture_alerts_note') }}</p><button class="button primary">{{ pt('save_preferences') }}</button></form></section>
+{% endblock %}

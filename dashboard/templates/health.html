@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block breadcrumb %}Capture health{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Capture health</h1><p class="muted">Connection, capture warnings and report freshness for each account.</p></div></div>
+<div class="health-accounts">{% for account,health in accounts %}<section class="panel"><div class="panel-top"><h2><a href="{{ url_for('account_health',ident=account.id) }}">{{ account.name }}</a></h2><span class="chip">{{ platform_names[account.platform] }}</span></div><p>{{ pt(health.state) }}</p><p class="field-note">Last captured incoming message · {{ health.report.last_capture|portaldate if health.report.last_capture else '—' }}</p><a class="button secondary" href="{{ url_for('account_health',ident=account.id) }}">View capture health</a></section>{% else %}<div class="panel">Add an account to begin monitoring.</div>{% endfor %}</div>
+{% endblock %}
