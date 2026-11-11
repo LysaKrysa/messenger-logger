@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — Safe capture-pipeline diagnostics
+
+- Report aggregate admission counters for received, timestamp-rejected, excluded,
+  own/unattributed, duplicate and saved message events.
+- Privately drain native warning output into allowlisted encryption categories,
+  including missing sessions, sender keys, prekeys and unavailable events. Never
+  retain or print native log text; bound input lines and preserve independent RPC.
+- Emit numeric diagnostic summaries at most once per minute without resetting
+  device state, changing capture policy or retrying Telegram sends.
+
 ## Unreleased — Resilient message viewer synchronization
 
 - Skip unsupported legacy archive records during web synchronization so a missing
