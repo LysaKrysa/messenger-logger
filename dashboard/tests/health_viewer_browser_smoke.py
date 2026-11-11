@@ -18,6 +18,7 @@ def verify(page, admin, origin, store, app, row, other, output):
     for width in (390, 768, 1440):
         page.set_viewport_size({'width': width, 'height': 900})
         page.goto(origin + '/me/messages')
+        page.locator('.conversation-item').filter(has=page.get_by_text('Ada', exact=True)).click()
         expect(page.get_by_role('heading', name='Message viewer', exact=True)).to_be_visible()
         assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
         assert 'OTHER_OWNER_ARCHIVE' not in page.content()
