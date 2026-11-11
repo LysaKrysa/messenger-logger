@@ -42,7 +42,7 @@ def verify(page, admin, origin, store, app, row, other, output):
     expect(page.get_by_text('Capture needs attention', exact=True)).to_be_visible()
     assert not page.evaluate('document.documentElement.scrollWidth > innerWidth')
     page.get_by_label('Telegram alerts for capture problems', exact=True).uncheck()
-    page.get_by_role('button', name='Save preferences', exact=True).click()
+    page.get_by_role('button', name='Save alert preferences', exact=True).click()
     assert not app.extensions['capture_health'].enabled(row)
     assert app.extensions['capture_health'].enabled(other)
     page.screenshot(path=str(output / 'capture-health-mobile.png'), full_page=True)
