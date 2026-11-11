@@ -636,3 +636,11 @@ report later edits, deletions and media states. This reads the local archive and
 never fetches old provider history. A paused worker resumes synchronization when
 started. Filters are applied to captured content; exclusions prevent future capture.
 The viewer does not reveal the logged-in account's outgoing messages.
+
+Unsupported legacy records (for example, records without an original creation
+time or with malformed metadata) are skipped during web synchronization without
+changing their local originals. They cannot block newer valid copies. Operational
+logs report skipped records at most once per five minutes and sync failures at
+most once per minute, using fixed categories without message content. A subsequent
+accepted batch records recovery. Dashboard-copy retries do not resend Telegram
+notifications and do not repair unavailable or undecryptable provider events.

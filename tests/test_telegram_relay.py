@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from event_store import EventStore
 from media_saver import MediaSaver
 from telegram_relay import (TelegramRelay, TelegramConfigurationError, TelegramRequestError,
-                            ERROR_RESPONSE_BYTES, chunks)
+                            TelegramAPIRejected, ERROR_RESPONSE_BYTES, chunks)
 from telegram_format import RichText, units, message_card
 from telegram_topics import TopicRouter, TopicError, TelegramRejected
 from zoneinfo import ZoneInfo
@@ -97,6 +97,30 @@ class TelegramTests(unittest.TestCase):
 
     def texts(self):
         return [json.loads(body)["text"] for request, body in self.calls if request.full_url.endswith("/sendMessage")]
+
+    def test_dashboard_sync_retries_independently_and_reports_safe_failure_and_recovery(self):
+        self.store.accept(message())
+        self.relay.gateway = 'http://127.0.0.1:8788'
+        archives = []
+        def api(method, value):
+            if method == 'reportHealth':
+                raise TelegramRequestError(method, 'timeout')
+            self.assertEqual(method, 'reportArchive')
+            archives.append(value)
+            if len(archives) < 3:
+                raise TelegramAPIRejected(method, 403, {'description': 'SYNTHETIC_PRIVATE_ERROR'})
+            return True
+        with patch.object(self.relay, '_api', side_effect=api):
+            for _ in range(3):
+                self.relay.archive.next_at = 0
+                self.relay.next_capture = 0
+                self.relay.report_capture({})
+        self.assertEqual(len(archives), 3)
+        self.assertEqual(sum('Dashboard message sync failed' in line for line in self.reports), 1)
+        self.assertEqual(sum('Dashboard message synchronization resumed' in line for line in self.reports), 1)
+        self.assertNotIn('SYNTHETIC_PRIVATE_ERROR', '\n'.join(self.reports))
+        self.assertFalse(self.relay.archive_sync_failed)
+        self.assertFalse(self.calls, 'Archive retries sent a Telegram notification')
 
     def save_media(self, mid="m1", index=0, data=PNG, filename=None):
         relative = Path("media") / "telegram-run" / (filename or (mid + ("_" + str(index) if index else "") + ".png"))

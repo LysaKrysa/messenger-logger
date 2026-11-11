@@ -125,8 +125,10 @@ class TelegramRelay:
     def __init__(self, report, store, *, timezone="Europe/Warsaw", start=True, names=None, topic_prefix=""):
         self.enabled = boolean("TELEGRAM_ENABLED", False)
         self.report, self.store = report, store
-        self.archive = ArchiveSync(store)
+        self.archive = ArchiveSync(store, report=report)
         self.next_capture = 0
+        self.next_archive_warning = 0
+        self.archive_sync_failed = False
         self.zone = ZoneInfo(timezone)
         self.language = "pl"
         self.mode = os.environ.get("TELEGRAM_MODE", "deleted").lower()
@@ -327,9 +329,19 @@ class TelegramRelay:
             if time.monotonic() >= self.next_capture:
                 self.next_capture = time.monotonic() + 30
                 self._api("reportHealth", dict(health, revision=revision))
-            self.archive.report(self._api, revision)
         except (ValueError, TelegramAPIRejected, TelegramRequestError):
             pass
+        try:
+            synced = self.archive.report(self._api, revision)
+        except (ValueError, TelegramAPIRejected, TelegramRequestError) as exc:
+            self.archive_sync_failed = True
+            if time.monotonic() >= self.next_archive_warning:
+                self.next_archive_warning = time.monotonic() + 60
+                self.report("Dashboard message sync failed (" + _failure_details(exc) + "); local capture continues and dashboard copies will retry.")
+        else:
+            if synced and self.archive_sync_failed:
+                self.report("Dashboard message synchronization resumed.")
+                self.archive_sync_failed = False
 
     def _muted(self, observed=None):
         now = time.time()

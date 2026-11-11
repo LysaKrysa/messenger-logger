@@ -1,6 +1,7 @@
 """Bounded, content-free capture health and account-scoped archive reporting."""
 from collections import deque
 import json
+import math
 import threading
 import time
 
@@ -61,8 +62,10 @@ class CaptureMonitor:
 
 class ArchiveSync:
     """Retry idempotent dashboard copies independently of Telegram delivery."""
-    def __init__(self, store):
+    def __init__(self, store, *, report=None):
         self.store = store
+        self.report_notice = report or (lambda message: None)
+        self.next_skip_notice = 0
         self.lock = threading.Lock()
         self.dirty = {}
         self.after = 0
@@ -81,9 +84,42 @@ class ArchiveSync:
                 self.dirty.clear()
             self.dirty[(thread_id, message_id)] = None
 
+    def _preview(self, tid, mid):
+        item = self.store.relay_snapshot(tid, mid)
+        if not item:
+            return None
+        now = self.store.clock()
+        for key in ("captured_at", "created_ms", "deleted_at_ms", "last_edit_ms"):
+            stamp = item[key]
+            required = key in {"captured_at", "created_ms"}
+            if stamp is None and not required:
+                continue
+            if (type(stamp) not in {int, float} or not math.isfinite(stamp)
+                    or stamp < 0 or required and stamp == 0
+                    or stamp > (now + 300) * (1 if key == "captured_at" else 1000)):
+                raise ValueError("Unsupported archive timestamp.")
+        value = {key: item[key] for key in ("sender", "text", "original_text", "created_ms", "captured_at", "deleted", "deleted_at_ms", "last_edit_ms", "conversation")}
+        # Older journal schemas allowed NULL message text. Preserve the local
+        # record and project an empty body when its creation time is known.
+        if value["text"] is None:
+            value["text"] = ""
+        if (any(not isinstance(value[key], str) for key in ("sender", "text", "conversation"))
+                or value["original_text"] is not None and not isinstance(value["original_text"], str)
+                or not isinstance(item["attachments"], list)
+                or any(not isinstance(media, dict) for media in item["attachments"])):
+            raise ValueError("Unsupported archive fields.")
+        value["preview_truncated"] = any(len(value[key] or "") > 20000 for key in ("text", "original_text")) or len(item["attachments"]) > 100
+        for key in ("text", "original_text"):
+            if value[key] is not None:
+                value[key] = value[key][:20000]
+        value["sender"], value["conversation"] = value["sender"][:500], value["conversation"][:500]
+        value.update(thread_id=tid, message_id=mid, attachments=[attachment_preview(media) for media in item["attachments"][:100]])
+        value["deleted"] = bool(value["deleted"])
+        return value
+
     def report(self, api, revision):
         if time.monotonic() < self.next_at:
-            return
+            return False
         self.next_at = time.monotonic() + 5
         with self.lock:
             dirty = list(self.dirty)[:10]
@@ -97,20 +133,18 @@ class ArchiveSync:
             with self.store.lock:
                 rows = self.store.db.execute("SELECT rowid,thread_id,message_id FROM messages WHERE rowid>? ORDER BY rowid LIMIT 10", (after,)).fetchall()
         keys = list(dict.fromkeys(dirty + [(row[1], row[2]) for row in rows]))
-        messages, used = [], 0
+        messages, used, skipped = [], 0, 0
         try:
             for index, (tid, mid) in enumerate(keys):
-                item = self.store.relay_snapshot(tid, mid)
-                if not item:
+                try:
+                    value = self._preview(tid, mid)
+                except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
+                    # An unsupported legacy record must not block newer captures.
+                    # Do not alter its local copy or invent an original timestamp.
+                    skipped += 1
                     continue
-                value = {key: item[key] for key in ("sender", "text", "original_text", "created_ms", "captured_at", "deleted", "deleted_at_ms", "last_edit_ms", "conversation")}
-                value["preview_truncated"] = any(len(value[key] or "") > 20000 for key in ("text", "original_text")) or len(item["attachments"]) > 100
-                for key in ("text", "original_text"):
-                    if value[key] is not None:
-                        value[key] = value[key][:20000]
-                value["sender"], value["conversation"] = value["sender"][:500], value["conversation"][:500]
-                value.update(thread_id=tid, message_id=mid, attachments=[attachment_preview(media) for media in item["attachments"][:100]])
-                value["deleted"] = bool(value["deleted"])
+                if value is None:
+                    continue
                 size = len(json.dumps(value).encode())
                 if used + size > 700000:
                     # Queue the unsent remainder before advancing the initial scan.
@@ -120,6 +154,9 @@ class ArchiveSync:
                     break
                 messages.append(value)
                 used += size
+            if skipped and time.monotonic() >= self.next_skip_notice:
+                self.next_skip_notice = time.monotonic() + 300
+                self.report_notice("Dashboard archive skipped " + str(skipped) + " unsupported records in this sync batch; local originals are unchanged.")
             if messages:
                 api("reportArchive", {"revision": revision, "messages": messages})
             with self.lock:
@@ -127,6 +164,7 @@ class ArchiveSync:
                     self.after = rows[-1][0] if rows else 0
                     if not rows:
                         self.next_scan = time.monotonic() + 300
+            return bool(messages)
         except Exception:
             with self.lock:
                 for key in dirty:
