@@ -138,7 +138,7 @@ class ArchiveSync:
             for index, (tid, mid) in enumerate(keys):
                 try:
                     value = self._preview(tid, mid)
-                except (ValueError, TypeError, KeyError, OverflowError):
+                except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
                     # An unsupported legacy record must not block newer captures.
                     # Do not alter its local copy or invent an original timestamp.
                     skipped += 1

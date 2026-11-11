@@ -199,6 +199,11 @@ class HealthViewerTests(PortalBase):
                 events.db.execute("INSERT INTO messages(thread_id,message_id,sender_id,text,transport,captured_at,created_ms,attachments) VALUES (?,?,?,?,?,?,?,?)",
                                   ('42', 'legacy-invalid-json', '222', 'LEGACY_PRIVATE_BODY', 'encrypted', self.now - 5,
                                    (self.now - 5) * 1000, 'not-json'))
+                events.db.execute("INSERT INTO messages(thread_id,message_id,sender_id,text,transport,captured_at,created_ms,metadata_json) VALUES (?,?,?,?,?,?,?,?)",
+                                  ('42', 'legacy-invalid-shape', '222', 'LEGACY_PRIVATE_BODY', 'encrypted', self.now - 5,
+                                   (self.now - 5) * 1000, '[]'))
+                events.db.execute("INSERT INTO messages(thread_id,message_id,sender_id,text,transport,captured_at,created_ms) VALUES (?,?,?,?,?,?,?)",
+                                  ('42', 'legacy-null-body', '222', None, 'encrypted', self.now, self.now * 1000))
             fresh = events.accept({'type': 'message', 'timestamp': self.now * 1000, 'data': {
                 'id': 'fresh-after-legacy', 'threadId': 42, 'senderId': 222,
                 'timestampMs': self.now * 1000, 'text': 'FRESH_COPY_AFTER_LEGACY'}})
@@ -216,8 +221,10 @@ class HealthViewerTests(PortalBase):
             self.assertIn('FRESH_COPY_AFTER_LEGACY', page)
             self.assertNotIn('LEGACY_PRIVATE_BODY', page)
             self.assertEqual(len(notices), 1)
-            self.assertIn('2 unsupported records', notices[0])
+            self.assertIn('3 unsupported records', notices[0])
             self.assertNotIn('LEGACY_PRIVATE', notices[0])
+            chats = self.archive.conversations_for(self.row)
+            self.assertEqual(len(self.archive.page(self.row, chats[0]['id'], {})[0]), 2)
             self.assertEqual(events.db.execute("SELECT text,created_ms FROM messages WHERE message_id='legacy-no-time'").fetchone(), (None, 0))
             self.assertEqual(events.db.execute("SELECT attachments FROM messages WHERE message_id='legacy-invalid-json'").fetchone()[0], 'not-json')
             self.assertGreater(sync.after, 0)
