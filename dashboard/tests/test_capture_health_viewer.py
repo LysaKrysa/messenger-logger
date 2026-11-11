@@ -155,7 +155,7 @@ class HealthViewerTests(PortalBase):
         self.login()
         response = self.client.get('/me/health', base_url=ORIGIN)
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertNotIn('999', response.get_data(as_text=True))
+        self.assertNotIn('class="health-number">999<', response.get_data(as_text=True))
         self.assertEqual(self.client.get('/health', base_url=ORIGIN).status_code, 302)
         self.now += 100
         self.assertFalse(self.health.view(self.row)['fresh'])

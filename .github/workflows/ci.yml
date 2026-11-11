@@ -61,8 +61,12 @@ jobs:
           python-version: '3.12'
       - name: Install browser test dependencies
         run: |
-          # The Azure mirror can stall each package download until this job expires.
-          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          # Use official HTTPS mirrors for both normal and security dependencies.
+          sudo sed -i \
+            -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+            -e 's|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' \
+            /etc/apt/apt-mirrors*.txt
           python -m pip install -r requirements-dashboard.txt playwright==1.64.1
           if ! command -v google-chrome >/dev/null; then
             python -m playwright install --with-deps chromium
