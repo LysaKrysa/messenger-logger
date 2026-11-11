@@ -2,6 +2,7 @@
 !Dockerfile
 !install_bridge.py
 !bridge_rpc.py
+!capture_monitor.py
 !event_store.py
 !logger.py
 !view_messages.py

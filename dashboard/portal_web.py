@@ -175,7 +175,7 @@ def install(app, store, origin, deliveries, status_root):
         values, next_page = archive.page(g.owner, selected, filters) if selected else ([], None)
         sync = store.setting("archive_sync:" + g.owner["id"], {})
         def page_url(page):
-            params = dict(request.args)
+            params = dict(filters)
             params.update(conversation=selected, offset=page)
             return url_for("portal.messages", **params)
         return render_template("portal_messages.html", conversations=chats, selected=selected, filters=filters,
