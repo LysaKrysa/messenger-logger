@@ -68,6 +68,7 @@ class ArchiveSync:
         self.after = 0
         self.next_at = 0
         self.next_scan = 0
+        self.scan_epoch = 0
 
     def changed(self, thread_id, message_id):
         if not message_id:
@@ -75,6 +76,8 @@ class ArchiveSync:
         with self.lock:
             if len(self.dirty) >= 4096:
                 self.after = 0
+                self.next_scan = 0
+                self.scan_epoch += 1
                 self.dirty.clear()
             self.dirty[(thread_id, message_id)] = None
 
@@ -88,6 +91,7 @@ class ArchiveSync:
                 self.dirty.pop(key, None)
             after = self.after
             scan = time.monotonic() >= self.next_scan
+            scan_epoch = self.scan_epoch
         rows = []
         if scan:
             with self.store.lock:
@@ -119,7 +123,7 @@ class ArchiveSync:
             if messages:
                 api("reportArchive", {"revision": revision, "messages": messages})
             with self.lock:
-                if scan:
+                if scan and scan_epoch == self.scan_epoch:
                     self.after = rows[-1][0] if rows else 0
                     if not rows:
                         self.next_scan = time.monotonic() + 300

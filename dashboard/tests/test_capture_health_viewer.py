@@ -1,8 +1,5 @@
 """Owner isolation, encrypted retention, capture alerts and real gateway reporting."""
-import copy
 import json
-import os
-import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -83,6 +80,13 @@ class HealthViewerTests(PortalBase):
         self.archive.cleanup()
         with self.store.db() as db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM message_archive').fetchone()[0], 0)
+
+    def test_delayed_snapshots_cannot_undo_a_known_deletion_or_newer_edit(self):
+        chat = self.report(text='Edited', last_edit_ms=self.now * 1000, deleted=True, deleted_at_ms=self.now * 1000)
+        self.report()
+        values, _ = self.archive.page(self.row, chat, {})
+        self.assertTrue(values[0]['deleted'])
+        self.assertEqual(values[0]['text'], 'Edited')
 
     def test_new_pairing_cannot_import_previous_owners_archive(self):
         self.report()

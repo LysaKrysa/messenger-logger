@@ -75,6 +75,14 @@ class MessageArchive:
                 self.conversations._upsert(db, row, item["thread_id"], item["conversation"][:120])
                 conversation = db.execute("SELECT id FROM conversation_catalog WHERE account_id=? AND pair_epoch=? AND thread_id=?", (row["id"], row["pair_epoch"], item["thread_id"])).fetchone()[0]
                 ident = self.store.secret("archive:" + row["id"] + ":" + str(row["pair_epoch"]) + ":" + item["thread_id"] + "\0" + item["message_id"])
+                previous = db.execute("SELECT payload FROM message_archive WHERE id=?", (ident,)).fetchone()
+                if previous:
+                    old = self.store.unseal("archive:" + ident, previous[0])
+                    item = dict(item)
+                    if old["deleted"]:
+                        item.update(deleted=True, deleted_at_ms=old["deleted_at_ms"])
+                    if (old["last_edit_ms"] or 0) > (item["last_edit_ms"] or 0):
+                        item.update(text=old["text"], last_edit_ms=old["last_edit_ms"])
                 payload = self.store.seal("archive:" + ident, item)
                 types = "|" + "|".join(sorted({media.get("type", "attachment") for media in item["attachments"]})) + "|"
                 db.execute("INSERT INTO message_archive VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,deleted=excluded.deleted,types=excluded.types,expires=MIN(message_archive.expires,excluded.expires)",
@@ -123,15 +131,17 @@ class MessageArchive:
             bound(db, row)
             if not db.execute("SELECT 1 FROM conversation_catalog WHERE id=? AND account_id=? AND pair_epoch=?", (conversation, row["id"], row["pair_epoch"])).fetchone():
                 raise DashboardError("Conversation unavailable.")
-            rows = db.execute("SELECT id,payload FROM message_archive WHERE " + " AND ".join(conditions) + " ORDER BY created DESC,id LIMIT 5001 OFFSET ?", (*params, offset)).fetchall()
-        values, scanned = [], 0
-        for value in rows[:5000]:
-            scanned += 1
-            item = self.store.unseal("archive:" + value["id"], value["payload"])
-            haystack = " ".join([item["text"], item["original_text"] or ""] + [media.get("fileName", "") for media in item["attachments"]])
-            if query.casefold() not in haystack.casefold() or sender.casefold() not in item["sender"].casefold():
-                continue
-            values.append(item)
-            if len(values) == 30:
-                break
-        return values, offset + scanned if scanned < len(rows) else None
+            rows = db.execute("SELECT id,payload FROM message_archive WHERE " + " AND ".join(conditions) + " ORDER BY created DESC,id LIMIT 5001 OFFSET ?", (*params, offset))
+            values, scanned = [], 0
+            for value in rows:
+                if scanned == 5000:
+                    return values, offset + scanned
+                scanned += 1
+                item = self.store.unseal("archive:" + value["id"], value["payload"])
+                haystack = " ".join([item["text"], item["original_text"] or ""] + [media.get("fileName", "") for media in item["attachments"]])
+                if query.casefold() not in haystack.casefold() or sender.casefold() not in item["sender"].casefold():
+                    continue
+                values.append(item)
+                if len(values) == 30:
+                    return values, offset + scanned if rows.fetchone() else None
+            return values, None

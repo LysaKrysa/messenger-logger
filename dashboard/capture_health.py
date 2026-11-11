@@ -32,6 +32,9 @@ class CaptureHealth:
         with self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
             bound(db, row, worker=True)
+            previous = db.execute("SELECT value FROM settings WHERE key=?", ("capture_health:" + row["id"],)).fetchone()
+            if previous and json.loads(previous[0]).get("started_at", 0) > value["started_at"]:
+                raise DashboardError("Health report belongs to an older worker session.")
             data = dict(value, pair_epoch=row["pair_epoch"], updated=now)
             db.execute("INSERT INTO settings VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("capture_health:" + row["id"], json.dumps(data)))
 
@@ -88,7 +91,9 @@ class CaptureHealth:
                         notifications.append("capture_alert_" + kind)
                         state["last_sent"][kind] = now
                     state["active"][kind] = last
-            if state["active"] and not any(report["recent"].values()) and (report["last_capture"] or 0) > max(state["active"].values()):
+            if (state["active"] and not any(report["recent"].values())
+                    and now - max(state["active"].values()) >= 600
+                    and (report["last_capture"] or 0) > max(state["active"].values())):
                 if enabled and state["last_sent"]:
                     notifications.append("capture_alert_recovery")
                 state["active"] = {}
@@ -96,6 +101,10 @@ class CaptureHealth:
         return notifications
 
     def tick(self, api):
+        with self.store.db() as db:
+            for row in db.execute("SELECT key,value FROM settings WHERE key LIKE 'capture_health:%'").fetchall():
+                if json.loads(row["value"]).get("updated", 0) < self.store.clock() - 259200:
+                    db.execute("DELETE FROM settings WHERE key=?", (row["key"],))
         for row in self.store.accounts(private=True):
             for key in self.alerts(row):
                 # Check the destination again after claiming, before network I/O.

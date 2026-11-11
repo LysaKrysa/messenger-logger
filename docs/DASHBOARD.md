@@ -93,8 +93,8 @@ browsers. Administrators can use **Revoke user sign-ins** on an account page.
 These actions do not stop capture. Pairing changes/removal revoke user sessions,
 pending logins and profile ownership; pause, restart and same-owner cookie
 refresh preserve access. Portal routes never accept an account selector from
-the user and do not expose cookies, message bodies, media keys, other owners'
-data, shared-bot configuration, invitations or host usage controls.
+the user. Message bodies are available only in that owner's retained-message
+viewer. Portal routes exclude cookies, media keys, other owners' data, shared-bot configuration, invitations or host usage controls.
 
 ### Upgrade an existing installation
 
@@ -617,6 +617,9 @@ minutes without new warnings. Earlier content is not assumed recovered.
 The message viewer lists conversations separately and searches within the
 selected conversation by text or filename, sender name, date, attachment type,
 and all/deleted/undeleted status. It includes original text for captured edits.
+Web previews show up to 20,000 characters per text version and 100 attachment
+entries. A visible notice identifies shortened previews. Search covers those
+previews; complete captured content remains in the local archive.
 Attachment entries show metadata and download state. Saved files remain available
 through Telegram's existing download controls.
 

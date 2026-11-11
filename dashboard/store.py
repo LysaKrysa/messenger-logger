@@ -109,6 +109,7 @@ class Store:
             db = sqlite3.connect(self.path.resolve().as_uri() + ("?mode=ro" if self.readonly else "?mode=rw"), uri=True, timeout=10) if self.path.exists() else sqlite3.connect(self.path, timeout=10)
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA trusted_schema=OFF")
+            db.execute("PRAGMA secure_delete=ON")
             try:
                 with db:
                     yield db
