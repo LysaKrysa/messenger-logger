@@ -321,3 +321,17 @@ def attachments(count, locale):
         return f"{count} " + ("attachment" if count == 1 else "attachments")
     word = "załącznik" if count == 1 else "załączniki" if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14) else "załączników"
     return f"{count} {word}"
+
+
+TEXT["en"].update({
+    "capture_alert_decryption": "Capture warning: repeated encrypted events were unavailable or could not be decrypted. Some incoming content may be missing while the connection is still active. Check Capture health in your dashboard using /panel. Retries can produce multiple warnings for one event.",
+    "capture_alert_media": "Capture warning: repeated attachment downloads failed. Message text and available attachment details may still be saved. Open Capture health in your dashboard using /panel.",
+    "capture_alert_queue": "Capture warning: a queue or notification limit caused content or a notification to be skipped. Check Capture health and delivery history in your dashboard using /panel.",
+    "capture_alert_recovery": "New incoming messages have been captured since the warning, and no further capture warnings were reported for 10 minutes. Some earlier events may still be missing. Check Capture health using /panel."
+})
+TEXT["pl"].update({
+    "capture_alert_decryption": "Ostrzeżenie zapisu: powtarzające się zdarzenia szyfrowane były niedostępne lub nie udało się ich odszyfrować. Część treści przychodzących może być pominięta mimo aktywnego połączenia. Sprawdź Stan zapisu w panelu przez /panel. Ponowienia mogą wywoływać wiele ostrzeżeń dla jednego zdarzenia.",
+    "capture_alert_media": "Ostrzeżenie zapisu: wielokrotnie nie udało się pobrać załączników. Tekst wiadomości i dostępne informacje o załącznikach mogą być zapisane. Otwórz Stan zapisu w panelu przez /panel.",
+    "capture_alert_queue": "Ostrzeżenie zapisu: limit kolejki lub powiadomień spowodował pominięcie treści albo powiadomienia. Sprawdź Stan zapisu i historię wysyłek w panelu przez /panel.",
+    "capture_alert_recovery": "Od czasu ostrzeżenia zapisano nowe wiadomości przychodzące i przez 10 minut nie zgłoszono kolejnych ostrzeżeń zapisu. Część wcześniejszych zdarzeń może nadal być pominięta. Sprawdź Stan zapisu przez /panel."
+})

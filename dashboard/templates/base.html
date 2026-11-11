@@ -1,5 +1,5 @@
 {% from 'icons.html' import icon %}
-{% set current = 'bot' if request.endpoint == 'bot_settings' else 'links' if request.endpoint in ['setup_links','setup_disable'] else 'usage' if request.endpoint == 'usage' else 'overview' %}
+{% set current = 'bot' if request.endpoint == 'bot_settings' else 'links' if request.endpoint in ['setup_links','setup_disable'] else 'usage' if request.endpoint == 'usage' else 'health' if request.endpoint in ['health','account_health'] else 'overview' %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -9,6 +9,7 @@
   <title>{% block title %}Messenger workspace{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='setup.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static',filename='portal.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
 </head>
 <body data-refresh="{{ 'true' if request.method == 'GET' and request.endpoint in ['index','account','usage'] else 'false' }}">
@@ -22,6 +23,7 @@
     <div class="nav-label">Workspace</div>
     <nav aria-label="Main navigation">
       <a class="nav-item {{ 'active' if current == 'overview' else '' }}" href="{{ url_for('index') }}" {% if current == 'overview' %}aria-current="page"{% endif %}>{{ icon('grid') }}Overview</a>
+      <a class="nav-item {{ 'active' if current == 'health' else '' }}" href="{{ url_for('health') }}" {% if current == 'health' %}aria-current="page"{% endif %}>{{ icon('usage') }}Capture health</a>
       <a class="nav-item {{ 'active' if current == 'usage' else '' }}" href="{{ url_for('usage') }}" {% if current == 'usage' %}aria-current="page"{% endif %}>{{ icon('usage') }}Usage</a>
       <a class="nav-item {{ 'active' if current == 'links' else '' }}" href="{{ url_for('setup_links') }}" {% if current == 'links' %}aria-current="page"{% endif %}>{{ icon('link') }}Setup links</a>
       <a class="nav-item {{ 'active' if current == 'bot' else '' }}" href="{{ url_for('bot_settings') }}" {% if current == 'bot' %}aria-current="page"{% endif %}>{{ icon('send') }}Telegram bot</a>

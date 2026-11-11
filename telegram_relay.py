@@ -27,11 +27,12 @@ from telegram_format import RichText, chunks, message_card, download_caption, ev
 from telegram_topics import TopicRouter, TopicError, TelegramRejected
 from telegram_i18n import tr, LANGUAGES
 from conversation_filters import DEFAULT, valid as valid_filters, capture, forwarding
+from capture_monitor import ArchiveSync
 
 # Cloud Bot API multipart uploads: https://core.telegram.org/bots/api#sending-files
 MAX_UPLOAD_BYTES = 50_000_000
 ERROR_RESPONSE_BYTES = 8192
-API_METHODS = frozenset({"getLocale", "getControls", "reportStatus", "reportStats", "reportConversations", "getMe", "getChat", "getChatMember", "createForumTopic",
+API_METHODS = frozenset({"getLocale", "getControls", "reportHealth", "reportArchive", "reportStatus", "reportStats", "reportConversations", "getMe", "getChat", "getChatMember", "createForumTopic",
                          "editForumTopic", "sendMessage", "sendDocument"})
 
 
@@ -124,6 +125,8 @@ class TelegramRelay:
     def __init__(self, report, store, *, timezone="Europe/Warsaw", start=True, names=None, topic_prefix=""):
         self.enabled = boolean("TELEGRAM_ENABLED", False)
         self.report, self.store = report, store
+        self.archive = ArchiveSync(store)
+        self.next_capture = 0
         self.zone = ZoneInfo(timezone)
         self.language = "pl"
         self.mode = os.environ.get("TELEGRAM_MODE", "deleted").lower()
@@ -200,6 +203,7 @@ class TelegramRelay:
                 self.queued.add(key)
 
     def submit(self, summary):
+        self.archive.changed(summary["thread_id"], summary["message_id"])
         if not self.enabled or self.stopping.is_set():
             return
         self.refresh_controls()
@@ -217,6 +221,7 @@ class TelegramRelay:
                     self.report("Telegram queue full; one relay was skipped. Local logging continues.")
 
     def media_updated(self, tid, mid):
+        self.archive.changed(tid, mid)
         if not self.enabled or self.stopping.is_set():
             return
         self.refresh_controls()
@@ -314,6 +319,18 @@ class TelegramRelay:
         except (ValueError, TelegramAPIRejected, TelegramRequestError):
             pass
 
+    def report_capture(self, health):
+        if not self.enabled or not getattr(self, "gateway", ""):
+            return
+        revision = int(os.environ.get("LOGGER_ACCOUNT_REVISION", "0"))
+        try:
+            if time.monotonic() >= self.next_capture:
+                self.next_capture = time.monotonic() + 30
+                self._api("reportHealth", dict(health, revision=revision))
+            self.archive.report(self._api, revision)
+        except (ValueError, TelegramAPIRejected, TelegramRequestError):
+            pass
+
     def _muted(self, observed=None):
         now = time.time()
         return self.quiet_until > now or observed is not None and any(start <= observed < end for start, end in self.quiet_windows)
@@ -324,7 +341,7 @@ class TelegramRelay:
             self.store.finish_telegram(tid, mid, part, "skipped")
 
     def _post(self, method, body, content_type="application/json", *, length=None, delivery=None):
-        internal = method in {"getLocale", "getControls", "reportStatus", "reportStats", "reportConversations"}
+        internal = method in {"getLocale", "getControls", "reportHealth", "reportArchive", "reportStatus", "reportStats", "reportConversations"}
         if not internal:
             if self.stopping.wait(max(0.0, self.next_send - time.monotonic())):
                 raise InterruptedError

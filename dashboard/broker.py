@@ -18,10 +18,12 @@ from .connection_alerts import ConnectionAlerts
 from .deliveries import Deliveries
 from .history_commands import HistoryCommands, PREFIXES
 from .portal_auth import PortalLogins
+from .message_archive import MessageArchive
+from .capture_health import CaptureHealth
 from telegram_i18n import tr
 
 METHODS = {
-    "getMe": set(), "getLocale": set(), "getControls": set(), "reportStats": set(), "reportConversations": {"revision", "conversations"}, "reportStatus": {"revision", "connected", "last_event"}, "getChat": {"chat_id"},
+    "getMe": set(), "getLocale": set(), "getControls": set(), "reportHealth": set(), "reportArchive": set(), "reportStats": set(), "reportConversations": {"revision", "conversations"}, "reportStatus": {"revision", "connected", "last_event"}, "getChat": {"chat_id"},
     "getChatMember": {"chat_id", "user_id"},
     "createForumTopic": {"chat_id", "name", "icon_color"},
     "editForumTopic": {"chat_id", "message_thread_id", "name"},
@@ -113,11 +115,15 @@ class PairingReceiver:
         self.history = HistoryCommands(store, api, self.deliveries)
         self.connection_alerts = ConnectionAlerts(store, api, origin=origin, maintenance=self.deliveries.cleanup)
         self.portal = PortalLogins(store, api, self.connection_alerts.origin)
+        self.archive = MessageArchive(store)
+        self.capture_health = CaptureHealth(store)
         self.connection_alerts.maintenance = self.maintenance
 
     def maintenance(self):
         self.deliveries.cleanup()
         self.portal.tick()
+        self.archive.cleanup()
+        self.capture_health.tick(self.api)
 
     def handle(self, update):
         ident = update.get("update_id")
@@ -333,7 +339,7 @@ def create_app(store=None, api=None):
         account = store.authenticate_worker(authorization.removeprefix("Bearer ")) if authorization.startswith("Bearer ") else None
         if not account:
             return jsonify(ok=False, error_code=403, description="Gateway account is not authorized"), 403
-        bucket = "worker-control:" if method in {"getControls", "reportStatus", "reportStats", "reportConversations"} else "gateway:"
+        bucket = "worker-control:" if method in {"getControls", "reportStatus", "reportStats", "reportConversations", "reportHealth", "reportArchive"} else "gateway:"
         if not store.take_limit(bucket + account["id"], 180, 60):
             return jsonify(ok=False, error_code=429, description="Gateway account rate limit reached"), 429
         if method not in METHODS:
@@ -341,6 +347,13 @@ def create_app(store=None, api=None):
         attempted = False
         delivery_id, params = None, None
         try:
+            if method in {"reportHealth", "reportArchive"}:
+                limit = 750000 if method == "reportArchive" else 4096
+                if request.content_length is None or request.content_length > limit:
+                    raise DashboardError("Capture report is too large.")
+                reporter = app.extensions["pairing"].archive if method == "reportArchive" else app.extensions["pairing"].capture_health
+                reporter.report(account, request.get_json(silent=True))
+                return jsonify(ok=True, result=True)
             if method == "reportConversations":
                 if request.content_length is None or request.content_length > 65536:
                     raise DashboardError("Conversation report is too large.")

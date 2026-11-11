@@ -81,6 +81,8 @@ def verify(browser, admin, origin, store, app, api, output):
     page.wait_for_url(origin + "/me/deliveries?outcome=sent")
     assert len(api.calls) == before + 1
     assert api.calls[-1][1]["chat_id"] == row["chat_id"]
+    from .health_viewer_browser_smoke import verify as verify_health_viewer
+    verify_health_viewer(page, admin, origin, store, app, row, other, output)
     page.goto(origin + "/me")
     page.get_by_role("button", name="Pause capture", exact=True).click()
     expect(page.locator(".status").first).to_have_text("Paused")

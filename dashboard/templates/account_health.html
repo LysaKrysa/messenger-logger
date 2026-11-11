@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block breadcrumb %}Capture health{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('account',ident=account.id) }}">Return to account</a>
+<div class="page-heading"><div><h1>{{ account.name }}</h1><p class="muted">Capture health · {{ platform_names[account.platform] }}</p></div></div>
+<section class="panel">{% include 'health_details.html' %}</section>
+{% endblock %}

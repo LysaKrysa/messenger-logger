@@ -38,6 +38,8 @@ dashboard manages a small shared workspace with one Telegram bot.
 | **Offline alerts & reconnects** | Notify the paired owner and refresh only their original approved account through a one-time, Telegram-confirmed link. |
 | **Conversation filters** | Include or exclude individual chats and groups, with separate local capture and per-conversation Telegram forwarding preferences. |
 | **Delivery history** | Inspect confirmed, failed and uncertain notifications; explicitly confirm a resend while retained content is available. |
+| **Capture health & alerts** | Administrator and owner health pages distinguish connection from capture, with localized per-owner problem alerts and cooldowns. |
+| **Private message viewer** | Browse retained incoming messages per conversation with deleted/undeleted, text, sender, date and attachment filters. |
 | **Private user dashboards** | Each paired owner has a Telegram-confirmed profile with settings, connection health, capture statistics, filters and delivery history. |
 | **Instagram pilot** | Send `/instagram` after pairing Messenger to connect your Instagram DMs, supported media, and unsends to the same bot. [Setup and test steps](docs/DASHBOARD.md#connect-instagram-from-telegram). |
 

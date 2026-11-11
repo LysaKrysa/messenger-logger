@@ -21,7 +21,7 @@
     {% endfor %}
   </div>
 </section>
-<nav class="account-tools" aria-label="Account tools"><a class="button secondary" href="{{ url_for('conversations',ident=account.id) }}">Conversation filters</a><a class="button secondary" href="{{ url_for('delivery_history',ident=account.id) }}">Delivery history</a></nav>
+<nav class="account-tools" aria-label="Account tools"><a class="button secondary" href="{{ url_for('account_health',ident=account.id) }}">Capture health</a><a class="button secondary" href="{{ url_for('conversations',ident=account.id) }}">Conversation filters</a><a class="button secondary" href="{{ url_for('delivery_history',ident=account.id) }}">Delivery history</a></nav>
 <div class="account-grid">
   <div class="account-primary">
     <section class="panel"><div class="panel-top"><h2>Forwarding preferences</h2></div>
