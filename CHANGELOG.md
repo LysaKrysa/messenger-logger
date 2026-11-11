@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Resilient message viewer synchronization
+
+- Skip unsupported legacy archive records during web synchronization so a missing
+  timestamp or malformed metadata cannot block newer valid captures. Preserve
+  the local originals and never invent message creation times.
+- Retry dashboard copies independently of health reporting and emit bounded,
+  content-free failure, skipped-record and recovery diagnostics.
+
 ## Unreleased — Capture health and private message viewer
 
 - Add administrator and owner capture health pages with fresh/stale reports,

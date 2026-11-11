@@ -188,3 +188,38 @@ class HealthViewerTests(PortalBase):
 
     def test_all_new_translations_exist_in_both_languages(self):
         self.assertEqual(set(TEXT['en']), set(TEXT['pl']))
+
+    def test_unsupported_legacy_rows_cannot_block_fresh_worker_copies(self):
+        events = EventStore(self.root / 'legacy-worker', own_id='111', started_at=self.now - 10,
+                            run_id='legacy-test', clock=lambda: self.now, retention_seconds=259200)
+        try:
+            with events.db:
+                events.db.execute("INSERT INTO messages(thread_id,message_id,sender_id,text,transport,captured_at) VALUES (?,?,?,?,?,?)",
+                                  ('42', 'legacy-no-time', '222', None, 'encrypted', self.now - 5))
+                events.db.execute("INSERT INTO messages(thread_id,message_id,sender_id,text,transport,captured_at,created_ms,attachments) VALUES (?,?,?,?,?,?,?,?)",
+                                  ('42', 'legacy-invalid-json', '222', 'LEGACY_PRIVATE_BODY', 'encrypted', self.now - 5,
+                                   (self.now - 5) * 1000, 'not-json'))
+            fresh = events.accept({'type': 'message', 'timestamp': self.now * 1000, 'data': {
+                'id': 'fresh-after-legacy', 'threadId': 42, 'senderId': 222,
+                'timestampMs': self.now * 1000, 'text': 'FRESH_COPY_AFTER_LEGACY'}})
+            notices = []
+            sync = ArchiveSync(events, report=notices.append)
+            sync.changed(fresh['thread_id'], fresh['message_id'])
+            gateway = broker_app(self.store, FakeAPI()).test_client()
+            def api(method, value):
+                response = gateway.post('/telegram/' + method, json=value,
+                                        headers={'Authorization': 'Bearer ' + self.store.worker_key(self.row)})
+                self.assertEqual(response.status_code, 200, response.data)
+            self.assertTrue(sync.report(api, self.row['revision']))
+            self.login()
+            page = self.client.get('/me/messages', base_url=ORIGIN).get_data(as_text=True)
+            self.assertIn('FRESH_COPY_AFTER_LEGACY', page)
+            self.assertNotIn('LEGACY_PRIVATE_BODY', page)
+            self.assertEqual(len(notices), 1)
+            self.assertIn('2 unsupported records', notices[0])
+            self.assertNotIn('LEGACY_PRIVATE', notices[0])
+            self.assertEqual(events.db.execute("SELECT text,created_ms FROM messages WHERE message_id='legacy-no-time'").fetchone(), (None, 0))
+            self.assertEqual(events.db.execute("SELECT attachments FROM messages WHERE message_id='legacy-invalid-json'").fetchone()[0], 'not-json')
+            self.assertGreater(sync.after, 0)
+        finally:
+            events.close()
